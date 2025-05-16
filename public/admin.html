@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Panel de Ingresos</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .ingreso {
+      background: white;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 15px auto;
+      max-width: 500px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    .ingreso img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    .info {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧾 Registro de Ingresos</h1>
+  <div id="lista-ingresos"></div>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
+      authDomain: "gymhakkyo-ingreso.firebaseapp.com",
+      projectId: "gymhakkyo-ingreso",
+      storageBucket: "gymhakkyo-ingreso.appspot.com",
+      messagingSenderId: "413099978087",
+      appId: "1:413099978087:web:cacfd3021a87dc3cd013c2",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const contenedor = document.getElementById("lista-ingresos");
+
+    const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
+
+    onSnapshot(q, (snapshot) => {
+      contenedor.innerHTML = "";
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const div = document.createElement("div");
+        div.classList.add("ingreso");
+        div.innerHTML = `
+  <div class="info-block">
+    <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
+    <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
+    <p><strong>🕒 Hora:</strong> ${data.hora || "No disponible"}</p>
+    ${
+      data.ubicacion && data.ubicacion.lat && data.ubicacion.lng
+        ? `<p><strong>🌐 Coordenadas:</strong> ${data.ubicacion.lat.toFixed(5)}, ${data.ubicacion.lng.toFixed(5)}</p>`
+        : ""
+    }
+    <div class="info">
+      <img src="${data.imagenBase64}" alt="Selfie" />
+    </div>
+  </div>
+`;
+        contenedor.appendChild(div);
+      });
+    });
+  </script>
+</body>
+</html>

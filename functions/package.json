@@ -1,0 +1,15 @@
+{
+  "name": "functions",
+  "main": "index.js",
+  "engines": {
+    "node": "18"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^4.18.2",
+    "firebase-functions": "^4.9.0",
+    "cors": "^2.8.5",
+    "axios": "^1.6.7"
+  }
+}
+

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Registro de Ingreso</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Registro de Ingreso</h1>
+
+    <label for="rol">Seleccioná tu rol:</label>
+    <select id="rol">
+      <option value="">-- Elegí una opción --</option>
+      <option value="Recepcionista">Recepcionista</option>
+      <option value="Profesor">Profesor</option>
+      <option value="Suplente">Suplente</option>
+    </select>
+
+    <video id="video" autoplay playsinline></video>
+    <button id="btn-capturar">📸 Sacar Selfie</button>
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <p id="estado"></p>
+  </div>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
+      authDomain: "gymhakkyo-ingreso.firebaseapp.com",
+      projectId: "gymhakkyo-ingreso",
+      storageBucket: "gymhakkyo-ingreso.appspot.com",
+      messagingSenderId: "413099978087",
+      appId: "1:413099978087:web:cacfd3021a87dc3cd013c2",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const btn = document.getElementById('btn-capturar');
+    const estado = document.getElementById('estado');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => { estado.textContent = "Error accediendo a la cámara"; });
+
+    async function obtenerDireccion(lat, lng) {
+      try {
+        const res = await fetch(`https://us-central1-gymhakkyo-ingreso.cloudfunctions.net/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+        const data = await res.json();
+        return data.direccion || "Ubicación no disponible";
+      } catch (e) {
+        console.error("Error al obtener dirección:", e);
+        return "Ubicación no disponible";
+      }
+    }
+
+    btn.addEventListener("click", async () => {
+      const rol = document.getElementById('rol').value;
+      if (!rol) return alert("Elegí un rol");
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const imagenBase64 = canvas.toDataURL('image/jpeg');
+
+      estado.textContent = "Obteniendo ubicación...";
+
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const direccion = await obtenerDireccion(lat, lng);
+        const hora = new Date().toLocaleString("es-AR");
+
+        try {
+          await addDoc(collection(db, "ingresos"), {
+            rol,
+            imagenBase64,
+            direccion,
+            hora,
+            timestamp: serverTimestamp()
+          });
+          estado.textContent = "✅ Ingreso registrado correctamente";
+        } catch (err) {
+          console.error("Error al guardar:", err);
+          estado.textContent = "❌ Error al guardar";
+        }
+      }, (err) => {
+        console.error("No se pudo obtener la ubicación", err);
+        estado.textContent = "❌ Ubicación no disponible";
+      });
+    });
+  </script>
+</body>
+</html>
