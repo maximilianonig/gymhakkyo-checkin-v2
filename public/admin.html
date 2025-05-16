@@ -13,12 +13,24 @@
     h1 {
       text-align: center;
     }
+    .filtros {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    select, input[type="date"] {
+      padding: 6px;
+      margin: 5px;
+      border-radius: 5px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
     .ingreso {
       background: white;
       border-radius: 10px;
       padding: 15px;
-      margin: 15px auto;
-      max-width: 500px;
       box-shadow: 0 0 5px rgba(0,0,0,0.1);
     }
     .ingreso img {
@@ -26,19 +38,32 @@
       border-radius: 10px;
       margin-top: 10px;
     }
-    .info {
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body>
   <h1>🧾 Registro de Ingresos</h1>
-  <div id="lista-ingresos"></div>
 
-  <!-- Firebase -->
+  <div class="filtros">
+    <select id="filtro-rol">
+      <option value="">Todos los roles</option>
+      <option value="Recepcionista">Recepcionista</option>
+      <option value="Profesor">Profesor</option>
+      <option value="Suplente">Suplente</option>
+    </select>
+    <input type="date" id="filtro-fecha" />
+  </div>
+
+  <div id="lista-ingresos" class="grid"></div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+    import {
+      getFirestore,
+      collection,
+      onSnapshot,
+      query,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
@@ -52,32 +77,54 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const contenedor = document.getElementById("lista-ingresos");
+    const filtroRol = document.getElementById("filtro-rol");
+    const filtroFecha = document.getElementById("filtro-fecha");
 
     const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
 
     onSnapshot(q, (snapshot) => {
+      const ingresos = [];
+      snapshot.forEach(doc => ingresos.push(doc.data()));
+      renderizar(ingresos);
+    });
+
+    function renderizar(data) {
+      const rol = filtroRol.value;
+      const fecha = filtroFecha.value;
+
       contenedor.innerHTML = "";
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const div = document.createElement("div");
-        div.classList.add("ingreso");
-        div.innerHTML = `
-  <div class="info-block">
-    <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
-    <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
-    <p><strong>🕒 Hora:</strong> ${data.hora || "No disponible"}</p>
-    ${
-      data.ubicacion && data.ubicacion.lat && data.ubicacion.lng
-        ? `<p><strong>🌐 Coordenadas:</strong> ${data.ubicacion.lat.toFixed(5)}, ${data.ubicacion.lng.toFixed(5)}</p>`
-        : ""
+      data
+        .filter(item => {
+          const cumpleRol = !rol || item.rol === rol;
+          const cumpleFecha = !fecha || item.timestamp?.toDate?.().toISOString().slice(0, 10) === fecha;
+          return cumpleRol && cumpleFecha;
+        })
+        .forEach(data => {
+          const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+          }) || data.hora || "Sin hora";
+
+          const div = document.createElement("div");
+          div.classList.add("ingreso");
+          div.innerHTML = `
+            <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
+            <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
+            <p><strong>🕒 Hora:</strong> ${hora}</p>
+            <img src="${data.imagenBase64}" alt="Selfie"/>
+          `;
+          contenedor.appendChild(div);
+        });
     }
-    <div class="info">
-      <img src="${data.imagenBase64}" alt="Selfie" />
-    </div>
-  </div>
-`;
-        contenedor.appendChild(div);
-      });
+
+    filtroRol.addEventListener("change", () => renderizar(cache));
+    filtroFecha.addEventListener("change", () => renderizar(cache));
+
+    let cache = [];
+    onSnapshot(q, (snapshot) => {
+      cache = snapshot.docs.map(doc => doc.data());
+      renderizar(cache);
     });
   </script>
 </body>
