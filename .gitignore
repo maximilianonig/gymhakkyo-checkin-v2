@@ -69,4 +69,9 @@ node_modules/
 .dataconnect
 
 node_modules/
+
+# Firebase functions
+functions/node_modules/
+
+
 .env
