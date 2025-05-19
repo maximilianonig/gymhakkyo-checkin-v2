@@ -1,4 +1,4 @@
-name: Deploy to Firebase Hosting
+name: Deploy Firebase Hosting (sitio estático)
 
 on:
   push:
@@ -12,18 +12,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: .  # 🟢 Clave para que use la raíz correcta
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Deploy to Firebase
+      - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
