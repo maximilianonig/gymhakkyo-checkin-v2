@@ -19,7 +19,7 @@
       <option value="Suplente">Suplente</option>
     </select>
 
-    <label for="nombre">Tu nombre y apellido (opcional):</label>
+    <label for="nombre">Tu nombre y apellido (opcional) <br> :</label>
     <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
 
     <video id="video" autoplay playsinline></video>
@@ -66,44 +66,39 @@
     let direccion = "Ubicación no disponible";
 
     const sedes = [
-      { nombre: "Santa Fe", calle: "avenida santa fe", altura: 4226 },
-      { nombre: "Borges", calle: "jorge luis borges", altura: 2405 },
-      { nombre: "Darregueyra", calle: "darregueyra", altura: 2489 },
-      { nombre: "Lacroze", calle: "federico lacroze", altura: 3961 },
-      { nombre: "Callao", calle: "avenida cordoba", altura: 1819 },
-      { nombre: "Subzero", calle: "venezuela", altura: 1637 },
-      { nombre: "Ciudad", calle: "miguel b sanchez", altura: 1049 }
+      { nombre: "Santa Fe", lat: -34.585536, lng: -58.415892 },
+      { nombre: "Borges", lat: -34.587099, lng: -58.426120 },
+      { nombre: "Darregueyra", lat: -34.586341, lng: -58.431000 },
+      { nombre: "Lacroze", lat: -34.579133, lng: -58.451259 },
+      { nombre: "Callao", lat: -34.598178, lng: -58.401611 },
+      { nombre: "Subzero", lat: -34.616150, lng: -58.393975 },
+      { nombre: "Ciudad", lat: -34.563523, lng: -58.458071 },
     ];
 
-    function normalizar(texto) {
-      return texto
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/\./g, "")
-        .replace(/\bav\b/g, "avenida")
-        .replace(/\bsta\b/g, "santa")
-        .replace(/\bsan\b/g, "san")
-        .replace(/\s+/g, " ")
-        .trim();
+    function distanciaMetros(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const rad = Math.PI / 180;
+      const dLat = (lat2 - lat1) * rad;
+      const dLon = (lon2 - lon1) * rad;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    function detectarSede(direccionOriginal) {
-      const direccion = normalizar(direccionOriginal);
-      const regex = /([\w\s]+)\s(\d{3,5})/;
-      const match = direccion.match(regex);
-      if (!match) return "No detectada";
-
-      const calle = normalizar(match[1].trim());
-      const altura = parseInt(match[2]);
+    function detectarSedePorCoordenadas(latActual, lngActual) {
+      let sedeDetectada = "No detectada";
+      let menorDistancia = Infinity;
 
       for (const sede of sedes) {
-        const calleSede = normalizar(sede.calle);
-        if (calle.includes(calleSede) && Math.abs(altura - sede.altura) <= 20) {
-          return sede.nombre;
+        const dist = distanciaMetros(latActual, lngActual, sede.lat, sede.lng);
+        if (dist < 80 && dist < menorDistancia) {
+          menorDistancia = dist;
+          sedeDetectada = sede.nombre;
         }
       }
 
-      return "No detectada";
+      return sedeDetectada;
     }
 
     async function obtenerDireccion(lat, lng) {
@@ -157,7 +152,7 @@
       canvas.getContext('2d').drawImage(video, 0, 0);
       const imagenBase64 = canvas.toDataURL('image/jpeg');
 
-      const sede = detectarSede(direccion);
+      const sede = detectarSedePorCoordenadas(lat, lng);
       const hora = new Date().toLocaleString("es-AR");
 
       try {
@@ -179,5 +174,4 @@
     });
   </script>
 </body>
-</html>
-
+/</html>
