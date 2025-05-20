@@ -169,4 +169,59 @@ video {
     font-size: 1rem;
   }
 }
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.filtro-izquierda {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filtro-derecha {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filtro-derecha input[type="date"] {
+  width: 130px;
+}
+
+.filtros-container {
+  margin-bottom: 20px;
+}
+
+.toggle-filtros {
+  background-color: var(--gris-medio);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.filtros-desplegable {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--blanco);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.2);
+}
+
+.filtros-desplegable.abierto {
+  display: flex;
+}
 

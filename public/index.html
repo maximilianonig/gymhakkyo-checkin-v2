@@ -18,6 +18,9 @@
       <option value="Suplente">Suplente</option>
     </select>
 
+    <label for="nombre">Tu nombre y apellido (opcional):</label>
+    <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
+
     <video id="video" autoplay playsinline></video>
     <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
 
@@ -28,7 +31,13 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      serverTimestamp,
+      enableIndexedDbPersistence
+    } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
@@ -42,10 +51,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // Activar modo offline
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn("⚠️ Persistencia no habilitada: múltiples pestañas abiertas.");
+      } else if (err.code === 'unimplemented') {
+        console.warn("⚠️ El navegador no soporta persistencia offline.");
+      }
+    });
+
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const btn = document.getElementById('btn-capturar');
     const estado = document.getElementById('estado');
+
     let lat = null;
     let lng = null;
     let direccion = "Ubicación no disponible";
@@ -60,41 +79,39 @@
       { nombre: "Ciudad", calle: "miguel b sanchez", altura: 1049 }
     ];
 
-   function normalizar(texto) {
-  return texto
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
-    .replace(/\./g, "")                              // quita puntos
-    .replace(/\bav\b/g, "avenida")
-    .replace(/\bsta\b/g, "santa")
-    .replace(/\bsan\b/g, "san")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-
-function detectarSede(direccionOriginal) {
-  const direccion = normalizar(direccionOriginal);
-  console.log("📍 Dirección normalizada:", direccion);
-
-  // buscar sede con coincidencia en calle y margen de altura
-  for (const sede of sedes) {
-    const calleSede = normalizar(sede.calle);
-
-    const regex = new RegExp(`${calleSede}\\s+(\\d{3,5})`);
-    const match = direccion.match(regex);
-
-    if (match) {
-      const alturaDetectada = parseInt(match[1]);
-      if (Math.abs(alturaDetectada - sede.altura) <= 20) {
-        return sede.nombre;
-      }
+    function normalizar(texto) {
+      return texto
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
+        .replace(/\./g, "")
+        .replace(/\bav\b/g, "avenida")
+        .replace(/\bsta\b/g, "santa")
+        .replace(/\bsan\b/g, "san")
+        .replace(/\s+/g, " ")
+        .trim();
     }
-  }
 
-  return "No detectada";
-}
+    function detectarSede(direccionOriginal) {
+      const direccion = normalizar(direccionOriginal);
+      const regex = /([\w\s]+)\s(\d{3,5})/;
+      const match = direccion.match(regex);
+      if (!match) return "No detectada";
 
+      const calle = normalizar(match[1].trim());
+      const altura = parseInt(match[2]);
+
+      for (const sede of sedes) {
+        const calleSede = normalizar(sede.calle);
+        if (
+          calle.includes(calleSede) &&
+          Math.abs(altura - sede.altura) <= 20
+        ) {
+          return sede.nombre;
+        }
+      }
+
+      return "No detectada";
+    }
 
     async function obtenerDireccion(lat, lng) {
       try {
@@ -134,6 +151,7 @@ function detectarSede(direccionOriginal) {
 
     btn.addEventListener("click", async () => {
       const rol = document.getElementById('rol').value;
+      const nombre = document.getElementById('nombre').value.trim();
       if (!rol) return alert("Elegí un rol");
 
       canvas.width = video.videoWidth;
@@ -147,6 +165,7 @@ function detectarSede(direccionOriginal) {
       try {
         await addDoc(collection(db, "ingresos"), {
           rol,
+          nombre: nombre || null,
           direccion,
           sede,
           imagenBase64,
