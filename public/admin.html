@@ -38,25 +38,75 @@
       border-radius: 10px;
       margin-top: 10px;
     }
+    #loginForm {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+    input, button {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #e60000;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #logout {
+      float: right;
+      margin: 10px;
+      padding: 5px 10px;
+      background: #444;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>🧾 Registro de Ingresos</h1>
 
-  <div class="filtros">
-    <select id="filtro-rol">
-      <option value="">Todos los roles</option>
-      <option value="Recepcionista">Recepcionista</option>
-      <option value="Profesor">Profesor</option>
-      <option value="Suplente">Suplente</option>
-    </select>
-    <input type="date" id="filtro-fecha" />
+  <div id="loginForm">
+    <h2>Login Admin</h2>
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Contraseña" />
+    <button id="loginBtn">Ingresar</button>
+    <p id="errorMsg" style="color: red;"></p>
   </div>
 
-  <div id="lista-ingresos" class="grid"></div>
+  <div id="adminPanel" style="display: none;">
+    <button id="logout">Cerrar sesión</button>
+    <h1>🧾 Registro de Ingresos</h1>
+
+    <div class="filtros">
+      <select id="filtro-rol">
+        <option value="">Todos los roles</option>
+        <option value="Recepcionista">Recepcionista</option>
+        <option value="Profesor">Profesor</option>
+        <option value="Suplente">Suplente</option>
+      </select>
+      <input type="date" id="filtro-fecha" />
+    </div>
+
+    <div id="lista-ingresos" class="grid"></div>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
     import {
       getFirestore,
       collection,
@@ -75,18 +125,19 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
     const db = getFirestore(app);
+
+    const loginForm = document.getElementById("loginForm");
+    const adminPanel = document.getElementById("adminPanel");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logout");
+
     const contenedor = document.getElementById("lista-ingresos");
     const filtroRol = document.getElementById("filtro-rol");
     const filtroFecha = document.getElementById("filtro-fecha");
 
-    const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
-
-    onSnapshot(q, (snapshot) => {
-      const ingresos = [];
-      snapshot.forEach(doc => ingresos.push(doc.data()));
-      renderizar(ingresos);
-    });
+    let cache = [];
 
     function renderizar(data) {
       const rol = filtroRol.value;
@@ -121,10 +172,35 @@
     filtroRol.addEventListener("change", () => renderizar(cache));
     filtroFecha.addEventListener("change", () => renderizar(cache));
 
-    let cache = [];
-    onSnapshot(q, (snapshot) => {
-      cache = snapshot.docs.map(doc => doc.data());
-      renderizar(cache);
+    loginBtn.addEventListener("click", () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      signInWithEmailAndPassword(auth, email, password)
+        .catch(error => {
+          document.getElementById("errorMsg").textContent = error.message;
+        });
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      signOut(auth);
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        loginForm.style.display = "none";
+        adminPanel.style.display = "block";
+
+        const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
+        onSnapshot(q, (snapshot) => {
+          cache = snapshot.docs.map(doc => doc.data());
+          renderizar(cache);
+        });
+
+      } else {
+        loginForm.style.display = "block";
+        adminPanel.style.display = "none";
+      }
     });
   </script>
 </body>
