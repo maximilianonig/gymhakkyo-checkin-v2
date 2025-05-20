@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Registro de Ingreso - Gym Hakkyo</title>
+  <title>Gym Hakkyo - Ingreso</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="favicon.png" type="image/png" />
 </head>
 <body>
   <div class="container">
@@ -51,13 +52,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Activar modo offline
     enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn("⚠️ Persistencia no habilitada: múltiples pestañas abiertas.");
-      } else if (err.code === 'unimplemented') {
-        console.warn("⚠️ El navegador no soporta persistencia offline.");
-      }
+      console.warn("⚠️ Persistencia offline no habilitada:", err.code);
     });
 
     const video = document.getElementById('video');
@@ -82,7 +78,7 @@
     function normalizar(texto) {
       return texto
         .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/\./g, "")
         .replace(/\bav\b/g, "avenida")
         .replace(/\bsta\b/g, "santa")
@@ -102,10 +98,7 @@
 
       for (const sede of sedes) {
         const calleSede = normalizar(sede.calle);
-        if (
-          calle.includes(calleSede) &&
-          Math.abs(altura - sede.altura) <= 20
-        ) {
+        if (calle.includes(calleSede) && Math.abs(altura - sede.altura) <= 20) {
           return sede.nombre;
         }
       }
@@ -150,9 +143,14 @@
     });
 
     btn.addEventListener("click", async () => {
+      if (btn.disabled) return;
+
       const rol = document.getElementById('rol').value;
       const nombre = document.getElementById('nombre').value.trim();
       if (!rol) return alert("Elegí un rol");
+
+      btn.disabled = true;
+      estado.textContent = "⏳ Registrando ingreso...";
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -176,8 +174,10 @@
       } catch (err) {
         console.error("Error al guardar:", err);
         estado.textContent = "❌ Error al guardar";
+        btn.disabled = false;
       }
     });
   </script>
 </body>
 </html>
+

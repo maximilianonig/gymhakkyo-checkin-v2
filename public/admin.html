@@ -1,13 +1,15 @@
-<!-- ... HEAD ... -->
+<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Panel de Ingresos</title>
+  <title>Gym Hakkyo - Admin</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.png" type="image/png" />
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
-<!-- ... BODY ... -->
 <body>
+
   <div id="loginForm">
     <h2>Login Admin</h2>
     <input type="email" id="email" placeholder="Email" />
@@ -20,44 +22,45 @@
     <button id="logout">Cerrar sesión</button>
     <h1>🧾 Registro de Ingresos</h1>
 
-<div class="filtros-container">
-  <button class="toggle-filtros" onclick="document.querySelector('.filtros-desplegable').classList.toggle('abierto')">
-    🎛️ Mostrar/Ocultar filtros
-  </button>
+    <div class="filtros-container">
+      <button class="toggle-filtros" onclick="document.querySelector('.filtros-desplegable').classList.toggle('abierto')">
+        🎛️ Mostrar/Ocultar filtros
+      </button>
 
-  <div class="filtros-desplegable">
-    <div class="filtro-izquierda">
-      <select id="filtro-rol">
-        <option value="">Todos los roles</option>
-        <option value="Recepcionista">Recepcionista</option>
-        <option value="Profesor">Profesor</option>
-        <option value="Suplente">Suplente</option>
-      </select>
+      <div class="filtros-desplegable">
+        <div class="filtro-izquierda">
+          <select id="filtro-rol">
+            <option value="">Todos los roles</option>
+            <option value="Recepcionista">Recepcionista</option>
+            <option value="Profesor">Profesor</option>
+            <option value="Suplente">Suplente</option>
+          </select>
 
-      <select id="filtro-sede">
-        <option value="">Todas las sedes</option>
-        <option value="Santa Fe">Santa Fe</option>
-        <option value="Borges">Borges</option>
-        <option value="Darregueyra">Darregueyra</option>
-        <option value="Lacroze">Lacroze</option>
-        <option value="Callao">Callao</option>
-        <option value="Subzero">Subzero</option>
-        <option value="Ciudad">Ciudad</option>
-        <option value="No detectada">No detectada</option>
-      </select>
+          <select id="filtro-sede">
+            <option value="">Todas las sedes</option>
+            <option value="Santa Fe">Santa Fe</option>
+            <option value="Borges">Borges</option>
+            <option value="Darregueyra">Darregueyra</option>
+            <option value="Lacroze">Lacroze</option>
+            <option value="Callao">Callao</option>
+            <option value="Subzero">Subzero</option>
+            <option value="Ciudad">Ciudad</option>
+            <option value="No detectada">No detectada</option>
+          </select>
 
-      <input type="date" id="filtro-fecha" />
-      <button id="limpiarFiltros">🔄 Limpiar filtros</button>
+          <input type="date" id="filtro-fecha" />
+          <button id="limpiarFiltros">🔄 Limpiar filtros</button>
+        </div>
+
+        <div class="filtro-derecha">
+          <label>Desde: <input type="date" id="export-desde" /></label>
+          <label>Hasta: <input type="date" id="export-hasta" /></label>
+          <button id="exportarExcel">📁 Exportar a Excel</button>
+        </div>
+      </div>
     </div>
 
-    <div class="filtro-derecha">
-      <label>Desde: <input type="date" id="export-desde" /></label>
-      <label>Hasta: <input type="date" id="export-hasta" /></label>
-      <button id="exportarExcel">📁 Exportar a Excel</button>
-    </div>
-  </div>
-</div>
-
+    <p id="contador-hoy">Ingresos hoy: 0</p>
 
     <div id="lista-ingresos" class="grid"></div>
   </div>
@@ -104,6 +107,7 @@
     const btnExportarExcel = document.getElementById("exportarExcel");
     const exportDesde = document.getElementById("export-desde");
     const exportHasta = document.getElementById("export-hasta");
+    const contadorHoy = document.getElementById("contador-hoy");
 
     let cache = [];
 
@@ -130,13 +134,18 @@
         return cumpleRol && cumpleSede && cumpleFecha;
       });
 
+      // Contador de ingresos del día
+      const hoy = new Date().toISOString().slice(0, 10);
+      const ingresosHoy = data.filter(i => {
+        const f = i.timestamp?.toDate?.().toISOString().slice(0, 10);
+        return f === hoy;
+      }).length;
+      contadorHoy.textContent = `Ingresos hoy: ${ingresosHoy}`;
+
       filtrado.forEach(data => {
         const fecha = data.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
-
         const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false
+          hour: "2-digit", minute: "2-digit", hour12: false
         }) || data.hora || "Sin hora";
 
         const div = document.createElement("div");
@@ -153,7 +162,6 @@
         contenedor.appendChild(div);
       });
 
-      // Excel export
       btnExportarExcel.onclick = () => {
         const desde = exportDesde.value;
         const hasta = exportHasta.value;
@@ -161,7 +169,6 @@
         const exportFiltrado = cache.filter(item => {
           const fechaISO = item.timestamp?.toDate?.().toISOString().slice(0, 10);
           if (!fechaISO) return false;
-
           const cumpleDesde = !desde || fechaISO >= desde;
           const cumpleHasta = !hasta || fechaISO <= hasta;
           return cumpleDesde && cumpleHasta;
@@ -227,3 +234,4 @@
     });
   </script>
 </body>
+</html>
