@@ -83,7 +83,7 @@
   </div>
 
   <div id="adminPanel" style="display: none;">
-    <button id="logout" onclick="logout()">Cerrar sesión</button>
+    <button id="logout">Cerrar sesión</button>
     <h1>🧾 Registro de Ingresos</h1>
 
     <div class="filtros">
@@ -101,7 +101,12 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
     import {
       getFirestore,
       collection,
@@ -125,23 +130,12 @@
 
     const loginForm = document.getElementById("loginForm");
     const adminPanel = document.getElementById("adminPanel");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logout");
+
     const contenedor = document.getElementById("lista-ingresos");
     const filtroRol = document.getElementById("filtro-rol");
     const filtroFecha = document.getElementById("filtro-fecha");
-
-    function login() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-
-      signInWithEmailAndPassword(auth, email, password)
-        .catch(error => {
-          document.getElementById("errorMsg").textContent = error.message;
-        });
-    }
-
-    function logout() {
-      signOut(auth);
-    }
 
     let cache = [];
 
@@ -177,6 +171,20 @@
 
     filtroRol.addEventListener("change", () => renderizar(cache));
     filtroFecha.addEventListener("change", () => renderizar(cache));
+
+    loginBtn.addEventListener("click", () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      signInWithEmailAndPassword(auth, email, password)
+        .catch(error => {
+          document.getElementById("errorMsg").textContent = error.message;
+        });
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      signOut(auth);
+    });
 
     onAuthStateChanged(auth, user => {
       if (user) {
