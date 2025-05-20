@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Registro de Ingreso</title>
+  <title>Registro de Ingreso - Gym Hakkyo</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -19,13 +19,13 @@
     </select>
 
     <video id="video" autoplay playsinline></video>
-    <button id="btn-capturar">📸 SACAR SELFIE</button>
-    <canvas id="canvas" style="display: none;"></canvas>
+    <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
 
     <p id="estado"></p>
   </div>
 
-  <!-- Firebase -->
+  <canvas id="canvas" style="display: none;"></canvas>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
@@ -46,10 +46,55 @@
     const canvas = document.getElementById('canvas');
     const btn = document.getElementById('btn-capturar');
     const estado = document.getElementById('estado');
+    let lat = null;
+    let lng = null;
+    let direccion = "Ubicación no disponible";
 
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => { video.srcObject = stream; })
-      .catch(err => { estado.textContent = "Error accediendo a la cámara"; });
+    const sedes = [
+      { nombre: "Santa Fe", calle: "avenida santa fe", altura: 4226 },
+      { nombre: "Borges", calle: "jorge luis borges", altura: 2405 },
+      { nombre: "Darregueyra", calle: "darregueyra", altura: 2489 },
+      { nombre: "Lacroze", calle: "federico lacroze", altura: 3961 },
+      { nombre: "Callao", calle: "avenida cordoba", altura: 1819 },
+      { nombre: "Subzero", calle: "venezuela", altura: 1637 },
+      { nombre: "Ciudad", calle: "miguel b sanchez", altura: 1049 }
+    ];
+
+   function normalizar(texto) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
+    .replace(/\./g, "")                              // quita puntos
+    .replace(/\bav\b/g, "avenida")
+    .replace(/\bsta\b/g, "santa")
+    .replace(/\bsan\b/g, "san")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+function detectarSede(direccionOriginal) {
+  const direccion = normalizar(direccionOriginal);
+  console.log("📍 Dirección normalizada:", direccion);
+
+  // buscar sede con coincidencia en calle y margen de altura
+  for (const sede of sedes) {
+    const calleSede = normalizar(sede.calle);
+
+    const regex = new RegExp(`${calleSede}\\s+(\\d{3,5})`);
+    const match = direccion.match(regex);
+
+    if (match) {
+      const alturaDetectada = parseInt(match[1]);
+      if (Math.abs(alturaDetectada - sede.altura) <= 20) {
+        return sede.nombre;
+      }
+    }
+  }
+
+  return "No detectada";
+}
+
 
     async function obtenerDireccion(lat, lng) {
       try {
@@ -62,6 +107,31 @@
       }
     }
 
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => { estado.textContent = "Error accediendo a la cámara"; });
+
+    estado.textContent = "📡 Obteniendo ubicación...";
+    btn.disabled = true;
+
+    const timeout = setTimeout(() => {
+      estado.textContent = "⚠️ No se pudo obtener ubicación a tiempo. Podés fichar sin ella.";
+      btn.disabled = false;
+    }, 5000);
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      clearTimeout(timeout);
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+      direccion = await obtenerDireccion(lat, lng);
+      estado.textContent = "✅ Ubicación lista. Ya podés fichar.";
+      btn.disabled = false;
+    }, (err) => {
+      clearTimeout(timeout);
+      estado.textContent = "⚠️ No se pudo obtener ubicación. Podés fichar sin ella.";
+      btn.disabled = false;
+    });
+
     btn.addEventListener("click", async () => {
       const rol = document.getElementById('rol').value;
       if (!rol) return alert("Elegí un rol");
@@ -71,31 +141,23 @@
       canvas.getContext('2d').drawImage(video, 0, 0);
       const imagenBase64 = canvas.toDataURL('image/jpeg');
 
-      estado.textContent = "Obteniendo ubicación...";
+      const sede = detectarSede(direccion);
+      const hora = new Date().toLocaleString("es-AR");
 
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const direccion = await obtenerDireccion(lat, lng);
-        const hora = new Date().toLocaleString("es-AR");
-
-        try {
-          await addDoc(collection(db, "ingresos"), {
-            rol,
-            imagenBase64,
-            direccion,
-            hora,
-            timestamp: serverTimestamp()
-          });
-          estado.textContent = "✅ Ingreso registrado correctamente";
-        } catch (err) {
-          console.error("Error al guardar:", err);
-          estado.textContent = "❌ Error al guardar";
-        }
-      }, (err) => {
-        console.error("No se pudo obtener la ubicación", err);
-        estado.textContent = "❌ Ubicación no disponible";
-      });
+      try {
+        await addDoc(collection(db, "ingresos"), {
+          rol,
+          direccion,
+          sede,
+          imagenBase64,
+          hora,
+          timestamp: serverTimestamp()
+        });
+        estado.textContent = "✅ Ingreso registrado correctamente en " + sede;
+      } catch (err) {
+        console.error("Error al guardar:", err);
+        estado.textContent = "❌ Error al guardar";
+      }
     });
   </script>
 </body>
