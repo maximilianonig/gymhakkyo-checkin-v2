@@ -3,8 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  
-
   <title>Panel de Ingresos</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -75,35 +73,39 @@
 
     let cache = [];
 
-    function renderizar(data) {
-      const rol = filtroRol.value;
-      const fecha = filtroFecha.value;
+function renderizar(data) {
+  const rol = filtroRol.value;
+  const fechaFiltro = filtroFecha.value;
 
-      contenedor.innerHTML = "";
-      data
-        .filter(item => {
-          const cumpleRol = !rol || item.rol === rol;
-          const cumpleFecha = !fecha || item.timestamp?.toDate?.().toISOString().slice(0, 10) === fecha;
-          return cumpleRol && cumpleFecha;
-        })
-        .forEach(data => {
-          const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false
-          }) || data.hora || "Sin hora";
+  contenedor.innerHTML = "";
+  data
+    .filter(item => {
+      const cumpleRol = !rol || item.rol === rol;
+      const cumpleFecha = !fechaFiltro || item.timestamp?.toDate?.().toISOString().slice(0, 10) === fechaFiltro;
+      return cumpleRol && cumpleFecha;
+    })
+    .forEach(data => {
+      const fecha = data.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
 
-          const div = document.createElement("div");
-          div.classList.add("ingreso");
-          div.innerHTML = `
-            <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
-            <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
-            <p><strong>🕒 Hora:</strong> ${hora}</p>
-            <img src="${data.imagenBase64}" alt="Selfie"/>
-          `;
-          contenedor.appendChild(div);
-        });
-    }
+      const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }) || data.hora || "Sin hora";
+
+      const div = document.createElement("div");
+      div.classList.add("ingreso");
+      div.innerHTML = `
+        <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
+        <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
+        <p><strong>📅 Fecha:</strong> ${fecha}</p>
+        <p><strong>🕒 Hora:</strong> ${hora}</p>
+        <img src="${data.imagenBase64}" alt="Selfie"/>
+      `;
+      contenedor.appendChild(div);
+    });
+}
+
 
     filtroRol.addEventListener("change", () => renderizar(cache));
     filtroFecha.addEventListener("change", () => renderizar(cache));
