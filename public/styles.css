@@ -1,0 +1,114 @@
+:root {
+  --verde-hakkyo: #79c000;
+  --negro-hakkyo: #2b2b2b;
+  --blanco: #ffffff;
+  --gris-medio: #dddddd;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--negro-hakkyo);
+  color: var(--blanco);
+  padding: 20px;
+}
+
+/* Encabezados */
+h1, h2 {
+  color: var(--verde-hakkyo);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* Botones generales */
+button {
+  background-color: var(--verde-hakkyo);
+  color: var(--negro-hakkyo);
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+
+button:hover {
+  background-color: #6ab000;
+}
+
+/* Login */
+#loginForm {
+  max-width: 400px;
+  margin: 0 auto;
+  background: var(--blanco);
+  color: var(--negro-hakkyo);
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 0 15px rgba(0,0,0,0.4);
+  text-align: center;
+}
+
+#loginForm input, #loginForm button {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+/* Panel admin */
+#adminPanel {
+  display: none;
+}
+
+#logout {
+  float: right;
+  margin: 10px;
+  padding: 5px 10px;
+  background: var(--gris-medio);
+  color: var(--negro-hakkyo);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Filtros */
+.filtros {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.filtros select, .filtros input[type="date"] {
+  padding: 6px;
+  margin: 5px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  color: var(--negro-hakkyo);
+}
+
+/* Lista de ingresos */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.ingreso {
+  background: var(--blanco);
+  color: var(--negro-hakkyo);
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 0 10px rgba(255,255,255,0.1);
+}
+
+.ingreso img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin-top: 10px;
+}
