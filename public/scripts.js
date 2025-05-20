@@ -24,6 +24,19 @@ const rolSelect = document.getElementById("rol");
 
 let stream;
 
+function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  signInWithEmailAndPassword(auth, email, password)
+    .catch(error => {
+      document.getElementById("errorMsg").textContent = error.message;
+    });
+}
+
+document.getElementById("loginBtn").addEventListener("click", login);
+
+
 async function iniciarCamara() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -109,3 +122,5 @@ try {
 });
 
 iniciarCamara();
+
+document.getElementById("loginBtn").addEventListener("click", login);
