@@ -9,6 +9,13 @@
   --gris-medio: #dddddd;
 }
 
+@font-face {
+  font-family: 'AFPEPSI';
+  src: url('fonts/AFPEPSI.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 /* Reset básico */
 * {
   margin: 0;
@@ -27,10 +34,9 @@ body {
 
 /* Títulos */
 h1, h2 {
-  color: var(--verde-hakkyo);
-  text-align: center;
-  margin-bottom: 1.5rem;
+  font-family: 'AFPEPSI', sans-serif;
 }
+
 
 /* Botones generales */
 button {
