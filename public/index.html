@@ -71,27 +71,28 @@
         .trim();
     }
 
-    function detectarSede(direccionOriginal) {
-      const direccion = normalizar(direccionOriginal);
-      const regex = /([\w\s]+)\s(\d{3,5})/;
-      const match = direccion.match(regex);
-      if (!match) return "No detectada";
+function detectarSede(direccionOriginal) {
+  const direccion = normalizar(direccionOriginal);
+  console.log("📍 Dirección normalizada:", direccion);
 
-      const calle = normalizar(match[1].trim());
-      const altura = parseInt(match[2]);
+  // buscar sede con coincidencia en calle y margen de altura
+  for (const sede of sedes) {
+    const calleSede = normalizar(sede.calle);
 
-      for (const sede of sedes) {
-        const calleSede = normalizar(sede.calle);
-        if (
-          calle.includes(calleSede) &&
-          Math.abs(altura - sede.altura) <= 20
-        ) {
-          return sede.nombre;
-        }
+    const regex = new RegExp(`${calleSede}\\s+(\\d{3,5})`);
+    const match = direccion.match(regex);
+
+    if (match) {
+      const alturaDetectada = parseInt(match[1]);
+      if (Math.abs(alturaDetectada - sede.altura) <= 20) {
+        return sede.nombre;
       }
-
-      return "No detectada";
     }
+  }
+
+  return "No detectada";
+}
+
 
     async function obtenerDireccion(lat, lng) {
       try {
