@@ -27,6 +27,19 @@
         <option value="Profesor">Profesor</option>
         <option value="Suplente">Suplente</option>
       </select>
+
+      <select id="filtro-sede">
+        <option value="">Todas las sedes</option>
+        <option value="Santa Fe">Santa Fe</option>
+        <option value="Borges">Borges</option>
+        <option value="Darregueyra">Darregueyra</option>
+        <option value="Lacroze">Lacroze</option>
+        <option value="Callao">Callao</option>
+        <option value="Subzero">Subzero</option>
+        <option value="Ciudad">Ciudad</option>
+        <option value="No detectada">No detectada</option>
+      </select>
+
       <input type="date" id="filtro-fecha" />
     </div>
 
@@ -69,45 +82,64 @@
 
     const contenedor = document.getElementById("lista-ingresos");
     const filtroRol = document.getElementById("filtro-rol");
+    const filtroSede = document.getElementById("filtro-sede");
     const filtroFecha = document.getElementById("filtro-fecha");
 
     let cache = [];
 
-function renderizar(data) {
-  const rol = filtroRol.value;
-  const fechaFiltro = filtroFecha.value;
+    function renderizar(data) {
+      const rol = filtroRol.value.toLowerCase();
+      const sede = filtroSede.value.toLowerCase();
+      const fechaFiltro = filtroFecha.value;
 
-  contenedor.innerHTML = "";
-  data
-    .filter(item => {
-      const cumpleRol = !rol || item.rol === rol;
-      const cumpleFecha = !fechaFiltro || item.timestamp?.toDate?.().toISOString().slice(0, 10) === fechaFiltro;
-      return cumpleRol && cumpleFecha;
-    })
-    .forEach(data => {
-      const fecha = data.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
+      contenedor.innerHTML = "";
 
-      const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false
-      }) || data.hora || "Sin hora";
+      data
+        .filter(item => {
+          const itemRol = item.rol?.toLowerCase() || "";
+          const itemSede = item.sede?.toLowerCase() || "";
 
-      const div = document.createElement("div");
-      div.classList.add("ingreso");
-      div.innerHTML = `
-        <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
-        <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
-        <p><strong>📅 Fecha:</strong> ${fecha}</p>
-        <p><strong>🕒 Hora:</strong> ${hora}</p>
-        <img src="${data.imagenBase64}" alt="Selfie"/>
-      `;
-      contenedor.appendChild(div);
-    });
-}
+          let itemFecha = "";
+          if (item.timestamp && item.timestamp.toDate) {
+            itemFecha = item.timestamp.toDate().toISOString().slice(0, 10);
+          }
 
+          const cumpleRol = !rol || itemRol === rol;
+          const cumpleSede = !sede || itemSede === sede;
+          const cumpleFecha = !fechaFiltro || itemFecha === fechaFiltro;
+
+          console.log("🔍 Evaluando:", {
+            itemRol, itemSede, itemFecha,
+            cumpleRol, cumpleSede, cumpleFecha
+          });
+
+          return cumpleRol && cumpleSede && cumpleFecha;
+        })
+        .forEach(data => {
+          const fecha = data.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
+
+          const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+          }) || data.hora || "Sin hora";
+
+          const div = document.createElement("div");
+          div.classList.add("ingreso");
+          div.innerHTML = `
+            <p><strong>🧑‍💼 Rol:</strong> ${data.rol || "N/A"}</p>
+            <p><strong>📍 Dirección:</strong> ${data.direccion || "No disponible"}</p>
+            <p><strong>🏢 Sede:</strong> ${data.sede || "No detectada"}</p>
+            <p><strong>📅 Fecha:</strong> ${fecha}</p>
+            <p><strong>🕒 Hora:</strong> ${hora}</p>
+            <img src="${data.imagenBase64}" alt="Selfie"/>
+          `;
+          contenedor.appendChild(div);
+        });
+    }
 
     filtroRol.addEventListener("change", () => renderizar(cache));
+    filtroSede.addEventListener("change", () => renderizar(cache));
     filtroFecha.addEventListener("change", () => renderizar(cache));
 
     loginBtn.addEventListener("click", () => {
@@ -143,3 +175,4 @@ function renderizar(data) {
   </script>
 </body>
 </html>
+
