@@ -60,16 +60,18 @@
       { nombre: "Ciudad", calle: "miguel b sanchez", altura: 1049 }
     ];
 
-    function normalizar(texto) {
-      return texto
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
-        .replace(/\bav\.?\b/g, "avenida")
-        .replace(/\bsta\.?\b/g, "santa")
-        .replace(/\bsan\b/g, "san")
-        .replace(/\s+/g, " ")
-        .trim();
-    }
+   function normalizar(texto) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes
+    .replace(/\./g, "")                              // quita puntos
+    .replace(/\bav\b/g, "avenida")
+    .replace(/\bsta\b/g, "santa")
+    .replace(/\bsan\b/g, "san")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 
 function detectarSede(direccionOriginal) {
   const direccion = normalizar(direccionOriginal);
