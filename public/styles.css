@@ -206,8 +206,8 @@ video {
   margin-top: 0.5rem;
 }
 
-button#btn-capturar {
-  margin-top: 0.8rem;
+#btn-capturar {
+  display: block;
+  margin: 0.8rem auto 0 auto;
 }
-
 

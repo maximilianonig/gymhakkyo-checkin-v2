@@ -45,6 +45,14 @@
           <input type="date" id="filtro-fecha" />
           <button id="limpiarFiltros">🔄 Limpiar filtros</button>
         </div>
+
+        <div class="filtro-derecha">
+          <label for="desde">Desde</label>
+          <input type="date" id="fecha-desde" />
+          <label for="hasta">Hasta</label>
+          <input type="date" id="fecha-hasta" />
+          <button onclick="exportarExcel()">📤 Exportar a Excel</button>
+        </div>
       </div>
     </div>
 
@@ -81,6 +89,8 @@
     const filtroTipo = document.getElementById("filtro-tipo");
     const btnLimpiarFiltros = document.getElementById("limpiarFiltros");
     const contadorHoy = document.getElementById("contador-hoy");
+    const fechaDesde = document.getElementById("fecha-desde");
+    const fechaHasta = document.getElementById("fecha-hasta");
 
     let cache = [];
 
@@ -150,6 +160,42 @@
       filtroTipo.value = "";
       renderizar(cache);
     });
+
+    function exportarExcel() {
+      if (!fechaDesde.value || !fechaHasta.value) {
+        alert("Seleccioná ambas fechas para exportar.");
+        return;
+      }
+
+      const desde = new Date(fechaDesde.value);
+      const hasta = new Date(fechaHasta.value);
+
+      const datosFiltrados = cache.filter(i => {
+        const f = i.timestamp?.toDate?.();
+        return f && f >= desde && f <= hasta;
+      });
+
+      if (datosFiltrados.length === 0) {
+        alert("No hay registros en ese rango.");
+        return;
+      }
+
+      let csv = "Nombre,Fecha,Hora,Rol,Sede,Dirección,Tipo\n";
+      datosFiltrados.forEach(i => {
+        const fecha = i.timestamp.toDate().toLocaleDateString("es-AR");
+        const hora = i.timestamp.toDate().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+        csv += `"${i.nombre || ''}","${fecha}","${hora}","${i.rol || ''}","${i.sede || ''}","${i.direccion || ''}","${i.tipo || 'entrada'}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "ingresos_hakkyo.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
 
     const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snapshot) => {
