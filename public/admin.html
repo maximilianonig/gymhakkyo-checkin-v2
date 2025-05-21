@@ -10,7 +10,7 @@
 </head>
 <body>
 
-  <div id="loginForm">
+  <div id="loginForm" class="container">
     <h2>Login Admin</h2>
     <input type="email" id="email" placeholder="Email" />
     <input type="password" id="password" placeholder="Contraseña" />
@@ -18,7 +18,7 @@
     <p id="errorMsg" style="color: red;"></p>
   </div>
 
-  <div id="adminPanel" style="display: none;">
+  <div id="adminPanel" style="display: none;" class="container">
     <button id="logout">Cerrar sesión</button>
     <h1>🧾 Registro de Ingresos</h1>
 
@@ -60,7 +60,7 @@
       </div>
     </div>
 
-    <p id="contador-hoy">Ingresos hoy: 0 <br></p>
+    <p id="contador-hoy">Ingresos hoy: 0</p>
 
     <div id="lista-ingresos" class="grid"></div>
   </div>
@@ -134,7 +134,7 @@
         return cumpleRol && cumpleSede && cumpleFecha;
       });
 
-      // Contador de ingresos del día
+      // Contador
       const hoy = new Date().toISOString().slice(0, 10);
       const ingresosHoy = data.filter(i => {
         const f = i.timestamp?.toDate?.().toISOString().slice(0, 10);
@@ -157,6 +157,7 @@
           <p><strong>🏢 Sede:</strong> ${data.sede || "No detectada"}</p>
           <p><strong>📅 Fecha:</strong> ${fecha}</p>
           <p><strong>🕒 Hora:</strong> ${hora}</p>
+          <p><strong>📏 Distancia:</strong> ${data.distanciaDetectada || "?"}m</p>
           <img src="${data.imagenBase64}" alt="Selfie"/>
         `;
         contenedor.appendChild(div);
