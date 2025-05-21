@@ -9,6 +9,7 @@
 </head>
 <body>
   <div class="container">
+    <img src="./assets/hakkyogymsinfondo.png" alt="Logo Gym Hakkyo" class="logo" />
     <h1>Registro de Ingreso</h1>
 
     <label for="rol">Seleccioná tu rol:</label>
@@ -19,26 +20,29 @@
       <option value="Suplente">Suplente</option>
     </select>
 
+    <label for="accion">¿Qué querés fichar?</label>
+    <select id="accion">
+      <option value="entrada">Entrada</option>
+      <option value="salida">Salida</option>
+    </select>
+
     <label for="nombre">Tu nombre y apellido (opcional):</label>
     <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
 
+    <p id="estado">📡 Obteniendo ubicación...</p>
+
     <video id="video" autoplay playsinline></video>
     <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
-
-    <p id="estado"></p>
   </div>
 
   <canvas id="canvas" style="display: none;"></canvas>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js';
     import {
-      getFirestore,
-      collection,
-      addDoc,
-      serverTimestamp,
-      enableIndexedDbPersistence
-    } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+      getFirestore, collection, addDoc, serverTimestamp,
+      query, where, getDocs, Timestamp
+    } from 'https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
@@ -46,15 +50,11 @@
       projectId: "gymhakkyo-ingreso",
       storageBucket: "gymhakkyo-ingreso.appspot.com",
       messagingSenderId: "413099978087",
-      appId: "1:413099978087:web:cacfd3021a87dc3cd013c2",
+      appId: "1:413099978087:web:cacfd3021a87dc3cd013c2"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
-    enableIndexedDbPersistence(db).catch((err) => {
-      console.warn("⚠️ Persistencia offline no habilitada:", err.code);
-    });
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -65,14 +65,16 @@
     let lng = null;
     let direccion = "Ubicación no disponible";
 
+       
+
     const sedes = [
-      { nombre: "Santa Fe", lat: -34.585536, lng: -58.415892 },
-      { nombre: "Borges", lat: -34.584921, lng: -58.426165 },
-      { nombre: "Darregueyra", lat: -34.586341, lng: -58.431000 },
-      { nombre: "Lacroze", lat: -34.579133, lng: -58.451259 },
-      { nombre: "Callao", lat: -34.598178, lng: -58.401611 },
-      { nombre: "Subzero", lat: -34.616150, lng: -58.393975 },
-      { nombre: "Ciudad", lat: -34.563523, lng: -58.458071 },
+      { nombre: "Santa Fe", lat: -34.58088797316031, lng: -58.422237561895855 },
+      { nombre: "Borges", lat: -34.58261928715806, lng: -58.4217225777634 },
+      { nombre: "Darregueyra", lat: -34.58003996945938, lng: -58.42372887010865 },
+      { nombre: "Lacroze", lat: -34.584525644812175, lng: -58.453875488879135 },
+      { nombre: "Callao", lat: -34.59930181440179, lng: -58.39323926004223 },
+      { nombre: "Subzero", lat: -34.614264047812114, lng: -58.38948140422186 },
+      { nombre: "Ciudad", lat: -34.543588364646936, lng: -58.45859547538972 }
     ];
 
     function distanciaMetros(lat1, lon1, lat2, lon2) {
@@ -80,8 +82,7 @@
       const rad = Math.PI / 180;
       const dLat = (lat2 - lat1) * rad;
       const dLon = (lon2 - lon1) * rad;
-      const a =
-        Math.sin(dLat / 2) ** 2 +
+      const a = Math.sin(dLat / 2) ** 2 +
         Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
@@ -92,16 +93,12 @@
 
       for (const sede of sedes) {
         const dist = distanciaMetros(latActual, lngActual, sede.lat, sede.lng);
-        console.log(`📍 Distancia hasta ${sede.nombre}: ${Math.round(dist)}m`);
-
         if (dist < 250 && dist < menorDistancia) {
           menorDistancia = dist;
           sedeDetectada = sede.nombre;
         }
       }
-
-      console.log(`✅ Sede detectada: ${sedeDetectada}`);
-      return { sedeDetectada, distancia: Math.round(menorDistancia) };
+      return sedeDetectada;
     }
 
     async function obtenerDireccion(lat, lng) {
@@ -115,66 +112,81 @@
       }
     }
 
+    function distanciaLevenshtein(a, b) {
+      const m = a.length, n = b.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
+          else dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+      return dp[m][n];
+    }
+
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => { video.srcObject = stream; })
       .catch(err => { estado.textContent = "Error accediendo a la cámara"; });
 
-    estado.textContent = "📡 Obteniendo ubicación...";
-    btn.disabled = true;
-
-    const timeout = setTimeout(() => {
-      estado.textContent = "⚠️ No se pudo obtener ubicación a tiempo. Podés fichar sin ella.";
-      btn.disabled = false;
-    }, 5000);
-
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      clearTimeout(timeout);
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
       direccion = await obtenerDireccion(lat, lng);
       estado.textContent = "✅ Ubicación lista. Ya podés fichar.";
       btn.disabled = false;
-    }, (err) => {
-      clearTimeout(timeout);
+    }, () => {
       estado.textContent = "⚠️ No se pudo obtener ubicación. Podés fichar sin ella.";
       btn.disabled = false;
     });
 
     btn.addEventListener("click", async () => {
-      if (btn.disabled) return;
+      const rol = document.getElementById("rol").value;
+      const accion = document.getElementById("accion").value;
+      const nombre = document.getElementById("nombre").value.trim();
 
-      const rol = document.getElementById('rol').value;
-      const nombre = document.getElementById('nombre').value.trim();
-      if (!rol) return alert("Elegí un rol");
+      if (!rol || !accion) return alert("Completá los datos obligatorios.");
 
-      btn.disabled = true;
-      estado.textContent = "⏳ Registrando ingreso...";
+      const sede = detectarSedePorCoordenadas(lat, lng);
+      const hora = new Date().toLocaleString("es-AR");
+      const timestamp = Timestamp.now();
+
+      if (accion === "salida") {
+        const q = query(
+          collection(db, "ingresos"),
+          where("sede", "==", sede),
+          where("rol", "==", rol),
+          where("tipo", "==", "entrada")
+        );
+        const snap = await getDocs(q);
+        const hayCoincidencia = snap.docs.some(doc => {
+          const n = (doc.data().nombre || "").toLowerCase();
+          return distanciaLevenshtein(n, nombre.toLowerCase()) <= 2;
+        });
+        if (!hayCoincidencia) {
+          estado.textContent = "❌ No se puede fichar salida. Ingreso no registrado.";
+          return;
+        }
+      }
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext('2d').drawImage(video, 0, 0);
       const imagenBase64 = canvas.toDataURL('image/jpeg');
 
-      const { sedeDetectada, distancia } = detectarSedePorCoordenadas(lat, lng);
-      const hora = new Date().toLocaleString("es-AR");
+      await addDoc(collection(db, "ingresos"), {
+        tipo: accion,
+        rol,
+        nombre: nombre || null,
+        direccion,
+        sede,
+        imagenBase64,
+        hora,
+        timestamp
+      });
 
-      try {
-        await addDoc(collection(db, "ingresos"), {
-          rol,
-          nombre: nombre || null,
-          direccion,
-          sede: sedeDetectada,
-          distanciaDetectada: distancia,
-          imagenBase64,
-          hora,
-          timestamp: serverTimestamp()
-        });
-        estado.textContent = "✅ Ingreso registrado correctamente en " + sedeDetectada;
-      } catch (err) {
-        console.error("Error al guardar:", err);
-        estado.textContent = "❌ Error al guardar";
-        btn.disabled = false;
-      }
+      estado.textContent = `✅ ${accion === "entrada" ? "Ingreso" : "Salida"} registrado correctamente en ${sede}`;
     });
   </script>
 </body>
