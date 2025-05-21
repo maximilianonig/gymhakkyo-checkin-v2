@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Gym Hakkyo - Ingreso</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="favicon.png" type="image/png" />
 </head>
 <body>
- 
+  <div id="estado" class="estado">📡 Obteniendo ubicación...</div>
   <div id="indicador-conexion" class="indicador-conexion">
     <span id="icono-conexion">🟢</span> <span id="texto-conexion">Conectado</span>
   </div>
+
   <div class="container">
     <img src="./assets/hakkyogymsinfondo.png" alt="Logo Gym Hakkyo" class="logo" />
     <h1>Registro de Ingreso</h1>
@@ -32,7 +32,7 @@
 
     <label for="nombre">Tu nombre y apellido (opcional):</label>
     <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
-    <div id="estado" class="estado">📡 Obteniendo ubicación...</div>
+
     <video id="video" autoplay playsinline></video>
     <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
   </div>
@@ -105,7 +105,6 @@
         const data = await res.json();
         return data.direccion || "Ubicación no disponible";
       } catch (e) {
-        console.error("Error al obtener dirección:", e);
         return "Ubicación no disponible";
       }
     }
@@ -125,21 +124,41 @@
     }
 
     async function guardarIngreso(data) {
-      if (navigator.onLine) {
-        try {
-          await addDoc(collection(db, "ingresos"), {
-            ...data,
-            timestamp: serverTimestamp()
-          });
-          mostrarEstado("✅ Ingreso registrado correctamente.");
-        } catch (e) {
-          console.error("Error al guardar en línea:", e);
+      const clave = `${data.rol}-${data.nombre || "anonimo"}`;
+
+      if (!navigator.onLine) {
+        // VALIDACIÓN: No se puede guardar salida sin entrada previa
+        if (data.tipo === "salida") {
+          const activos = JSON.parse(localStorage.getItem("fichajesActivos") || "{}");
+          if (!activos[clave]) {
+            alert("⚠️ No se puede registrar una salida sin haber fichado una entrada.");
+            return;
+          }
+          delete activos[clave];
+          localStorage.setItem("fichajesActivos", JSON.stringify(activos));
+        } else if (data.tipo === "entrada") {
+          const activos = JSON.parse(localStorage.getItem("fichajesActivos") || "{}");
+          activos[clave] = true;
+          localStorage.setItem("fichajesActivos", JSON.stringify(activos));
         }
-      } else {
+
         const pendientes = JSON.parse(localStorage.getItem("ingresosPendientes") || "[]");
         pendientes.push({ ...data, fechaLocal: new Date().toISOString() });
         localStorage.setItem("ingresosPendientes", JSON.stringify(pendientes));
-        mostrarEstado("📴 Sin conexión: ingreso guardado localmente.");
+        mostrarEstado("📴 Sin conexión: guardado local.");
+        return;
+      }
+
+      // Guardado online
+      try {
+        await addDoc(collection(db, "ingresos"), {
+          ...data,
+          timestamp: serverTimestamp()
+        });
+        mostrarEstado("✅ Ingreso registrado correctamente.");
+      } catch (err) {
+        console.error("Error al guardar en línea:", err);
+        alert("❌ Error al guardar. Intentá de nuevo.");
       }
     }
 
@@ -154,12 +173,14 @@
             timestamp: serverTimestamp()
           });
         } catch (err) {
-          console.error("Error al sincronizar ingreso:", err);
+          console.error("❌ Error al sincronizar:", err);
           return;
         }
       }
+
       localStorage.removeItem("ingresosPendientes");
-      mostrarEstado("✔️ Ingresos pendientes sincronizados.");
+      localStorage.removeItem("fichajesActivos");
+      mostrarEstado("✔️ Fichajes pendientes sincronizados.");
     }
 
     navigator.mediaDevices.getUserMedia({ video: true })
@@ -173,7 +194,7 @@
       mostrarEstado("✅ Ubicación lista. Ya podés fichar.");
       btn.disabled = false;
     }, () => {
-      mostrarEstado("⚠️ No se pudo obtener ubicación. Podés fichar sin ella.");
+      mostrarEstado("⚠️ No se pudo obtener ubicación.");
       btn.disabled = false;
     });
 
@@ -182,7 +203,7 @@
       const accion = document.getElementById("accion").value;
       const nombre = document.getElementById("nombre").value.trim();
 
-      if (!rol || !accion) return alert("Completá los datos obligatorios.");
+      if (!rol || !accion) return alert("⚠️ Completá los datos obligatorios.");
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
