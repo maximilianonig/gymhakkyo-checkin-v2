@@ -210,4 +210,32 @@ button#btn-capturar {
   margin-top: 0.8rem;
 }
 
+.indicador-conexion {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: white;
+  color: black;
+  border: 2px solid #ccc;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 999;
+  box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.estado {
+  text-align: center;
+  font-style: italic;
+  padding: 8px;
+  background: #fffbcc;
+  border-radius: 10px;
+  margin: 10px auto;
+  max-width: 95%;
+  font-weight: bold;
+}
 
