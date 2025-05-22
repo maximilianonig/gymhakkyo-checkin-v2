@@ -263,6 +263,44 @@ btnInstalar.addEventListener("click", async () => {
     });
     window.addEventListener("offline", actualizarIndicadorConexion);
     actualizarIndicadorConexion();
+
+    let deferredPrompt;
+const btnInstalar = document.getElementById("btn-instalar");
+
+// Detectar plataforma iOS
+function esIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+// Mostrar instrucciones para iOS
+if (esIOS()) {
+  btnInstalar.style.display = "block";
+  btnInstalar.textContent = "📲 Cómo instalar en iPhone";
+  btnInstalar.addEventListener("click", () => {
+    alert("En iPhone, tocá el botón 'Compartir' en Safari y luego elegí 'Agregar a pantalla de inicio'.");
+  });
+} else {
+  // Android
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstalar.style.display = "block";
+  });
+
+  btnInstalar.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    btnInstalar.style.display = "none";
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      mostrarEstado("✅ App instalada correctamente.");
+    } else {
+      mostrarEstado("❌ Instalación cancelada.");
+    }
+    deferredPrompt = null;
+  });
+}
+
   </script>
 
   <button id="btn-instalar" style="display:none;" class="btn-instalar">
