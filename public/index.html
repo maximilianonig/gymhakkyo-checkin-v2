@@ -264,6 +264,38 @@ btnInstalar.addEventListener("click", async () => {
     window.addEventListener("offline", actualizarIndicadorConexion);
     actualizarIndicadorConexion();
 
+    let deferredPrompt;
+const btnInstalar = document.getElementById("btn-instalar");
+
+// Mostrar siempre en Android (Chrome/Edge)
+function esAndroid() {
+  return /android/i.test(navigator.userAgent);
+}
+
+if (esAndroid()) {
+  btnInstalar.style.display = "block";
+}
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+btnInstalar.addEventListener("click", async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      mostrarEstado("✅ App instalada correctamente.");
+    } else {
+      mostrarEstado("❌ Instalación cancelada.");
+    }
+    deferredPrompt = null;
+  } else {
+    alert("📲 Para instalar esta app:\n1. Tocá los tres puntos arriba a la derecha en Chrome\n2. Elegí 'Agregar a pantalla de inicio'");
+  }
+});
+
     
   </script>
 
