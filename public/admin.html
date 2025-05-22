@@ -53,6 +53,9 @@
           <label for="hasta">Hasta</label>
           <input type="date" id="fecha-hasta" />
           <button onclick="exportarExcel()">📤 Exportar a Excel</button>
+          <button onclick="exportarAnalisisPro()">📥 Exportar análisis PRO</button>
+<canvas id="graficoTardes" style="max-width:100%; margin-top: 2rem;"></canvas>
+
         </div>
       </div>
     </div>
@@ -208,6 +211,100 @@
   location.reload(); // Fuerza recarga limpia del panel
 });
 
+function exportarAnalisisPro() {
+  if (!cache || cache.length === 0) {
+    alert("No hay datos cargados.");
+    return;
+  }
+
+  const tardanzas = {};
+  const porMes = {};
+
+  for (const ingreso of cache) {
+    const nombre = ingreso.nombre || "Sin nombre";
+    const rol = ingreso.rol || "Sin rol";
+    const tipo = ingreso.tipo || "entrada";
+    const fechaObj = ingreso.timestamp?.toDate?.();
+
+    if (!fechaObj || tipo !== "entrada") continue;
+
+    const fecha = fechaObj.toLocaleDateString("es-AR");
+    const hora = fechaObj.toTimeString().split(" ")[0];
+    const [h, m] = hora.split(":").map(Number);
+
+    const turno = h < 12 ? "mañana" : "tarde";
+    const esTarde = (turno === "mañana" && (h > 7 || (h === 7 && m > 0))) ||
+                    (turno === "tarde" && (h > 15 || (h === 15 && m > 0)));
+
+    const mes = fechaObj.toLocaleString("es-AR", { month: "long", year: "numeric" });
+    const clave = `${nombre} - ${rol}`;
+
+    if (!tardanzas[clave]) tardanzas[clave] = {};
+    if (!tardanzas[clave][mes]) tardanzas[clave][mes] = { mañana: 0, tarde: 0 };
+
+    if (esTarde) {
+      tardanzas[clave][mes][turno]++;
+    }
+
+    // Acumulador para gráfico por persona
+    if (!porMes[clave]) porMes[clave] = 0;
+    if (esTarde) porMes[clave]++;
+  }
+
+  // Generar Excel
+  const rows = [["Nombre - Rol", "Mes", "Tardes Mañana", "Tardes Tarde", "Total"]];
+  for (const persona in tardanzas) {
+    for (const mes in tardanzas[persona]) {
+      const man = tardanzas[persona][mes].mañana || 0;
+      const tar = tardanzas[persona][mes].tarde || 0;
+      rows.push([persona, mes, man, tar, man + tar]);
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Tardanzas");
+  XLSX.writeFile(wb, "analisis_tardanzas.xlsx");
+
+  // Generar gráfico
+  const ctx = document.getElementById("graficoTardes").getContext("2d");
+  const etiquetas = Object.keys(porMes);
+  const valores = Object.values(porMes);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: "Llegadas Tarde (Total)",
+        data: valores,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: "Tardanzas por persona (total por mes)" }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 }
+        }
+      }
+    }
+  });
+}
+
+window.exportarAnalisisPro = exportarAnalisisPro;
+
+
   </script>
+  <!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- SheetJS (xlsx) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 </body>
 </html>

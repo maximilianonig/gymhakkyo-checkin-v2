@@ -101,7 +101,7 @@
 
       for (const sede of sedes) {
         const dist = distanciaMetros(latActual, lngActual, sede.lat, sede.lng);
-        if (dist < 250 && dist < menorDistancia) {
+        if (dist < 10 && dist < menorDistancia) {
           menorDistancia = dist;
           sedeDetectada = sede.nombre;
         }
