@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Gym Hakkyo - Ingreso</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(reg => console.log("Service Worker registrado", reg))
+        .catch(err => console.warn("Error al registrar el Service Worker", err));
+    });
+  }
+</script>
 </head>
 <body>
   <div id="estado" class="estado">📡 Obteniendo ubicación...</div>
@@ -123,6 +133,29 @@
       texto.textContent = conectado ? "Conectado" : "Sin conexión";
     }
 
+    let deferredPrompt;
+const btnInstalar = document.getElementById("btn-instalar");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  btnInstalar.style.display = "inline-block";
+});
+
+btnInstalar.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  btnInstalar.style.display = "none";
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  if (result.outcome === 'accepted') {
+    mostrarEstado("✅ App instalada correctamente.");
+  } else {
+    mostrarEstado("❌ Instalación cancelada.");
+  }
+  deferredPrompt = null;
+});
+
+
     async function guardarIngreso(data) {
       const clave = `${data.rol}-${data.nombre || "anonimo"}`;
 
@@ -231,5 +264,10 @@
     window.addEventListener("offline", actualizarIndicadorConexion);
     actualizarIndicadorConexion();
   </script>
+
+  <button id="btn-instalar" style="display:none;" class="btn-instalar">
+  📲 Instalar App
+</button>
+
 </body>
 </html>
