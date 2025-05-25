@@ -17,7 +17,7 @@
 
   <div id="admin-panel" style="display:none">
     <div class="container">
-      <h1>Panel de Administración</h1>
+      <h1>Panel de Administracion</h1>
 
       <div class="filtros-container">
         <button class="toggle-filtros" onclick="document.querySelector('.filtros-desplegable').classList.toggle('abierto')">🎛️ Mostrar/Ocultar filtros</button>
@@ -55,7 +55,7 @@
           <label for="hasta">Hasta</label>
           <input type="date" id="fecha-hasta" />
           <button onclick="exportarExcel()">📤 Exportar a Excel</button>
-          <button onclick="exportarAnalisisPro()">📥 Exportar análisis PRO</button>
+          <button onclick="exportarAnalisisPro()">📥 GRAFICO</button>
           <canvas id="graficoTardes" style="max-width:100%; margin-top: 2rem;"></canvas>
         </div>
             <button id="limpiarFiltros">🔄 Limpiar filtros</button>
@@ -199,6 +199,193 @@
         location.reload();
       });
     }
+
+window.exportarExcel = () => {
+  import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(() => {
+    const tabla = [];
+
+    const sedesEspeciales = ["Subzero", "Lacroze"];
+
+    document.querySelectorAll(".ingreso").forEach(div => {
+      const fila = {};
+
+      const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "entrada";
+      const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
+      fila["Tipo"] = tipo.charAt(0).toUpperCase() + tipo.slice(1); // Entrada / Salida
+
+      div.querySelectorAll("p").forEach(p => {
+        const parts = p.textContent.split(":");
+        const label = parts[0]?.trim();
+        const value = parts.slice(1).join(":").trim();
+        if (label && value) fila[label] = value;
+      });
+
+      const horaStr = fila["Hora"];
+      const sede = fila["Sede"] || "No detectada";
+
+      if (!horaStr || !sede) {
+        fila["Minutos tarde"] = "";
+        fila["Minutos antes de irse"] = "";
+        tabla.push(fila);
+        return;
+      }
+
+      const [h, m] = horaStr.split(":").map(x => parseInt(x));
+      const minutosTotales = h * 60 + m;
+
+      const esTurnoManana = minutosTotales < 900;
+
+      // Definir hora base según sede y turno
+      let baseEntrada = 0;
+      let baseSalida = 0;
+
+      if (esTurnoManana) {
+        baseEntrada = sedesEspeciales.includes(sede) ? 450 : 420;  // 7:30 o 7:00
+        baseSalida = 900; // 15:00
+      } else {
+        baseEntrada = 900; // 15:00 todos
+        baseSalida = sedesEspeciales.includes(sede) ? 1350 : 1380; // 22:30 o 23:00
+      }
+
+      if (tipo === "entrada") {
+        fila["Minutos tarde"] = Math.max(0, minutosTotales - baseEntrada);
+        fila["Minutos antes de irse"] = "";
+      } else if (tipo === "salida") {
+        fila["Minutos tarde"] = "";
+        fila["Minutos antes de irse"] = Math.max(0, baseSalida - minutosTotales);
+      }
+
+      tabla.push(fila);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(tabla);
+    XLSX.utils.book_append_sheet(wb, ws, "Ingresos");
+    XLSX.writeFile(wb, "ingresos.xlsx");
+  });
+};
+
+   window.exportarAnalisisPro = () => {
+  const sedesEspeciales = ["Subzero", "Lacroze"];
+  const datos = {};
+
+  document.querySelectorAll(".ingreso").forEach(div => {
+    function normalizarNombre(nombre) {
+  return nombre
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const nombreRaw = div.querySelector("p:nth-child(3)")?.textContent.split(":")[1]?.trim() || "No informado";
+const nombre = normalizarNombre(nombreRaw);
+
+    const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "";
+    const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
+    const sede = div.querySelector("p:nth-child(5)")?.textContent.split(":")[1]?.trim() || "";
+    const horaStr = div.querySelector("p:nth-child(7)")?.textContent.split(":")[1]?.trim() || "";
+
+    if (!horaStr) return;
+
+    const [h, m] = horaStr.split(":").map(x => parseInt(x));
+    const minutos = h * 60 + m;
+
+    const esEspecial = sedesEspeciales.includes(sede);
+    const esTurnoManana = minutos < 900;
+
+    // Hora base según sede y turno
+    let baseEntrada = 0;
+    let baseSalida = 0;
+
+    if (esTurnoManana) {
+      baseEntrada = esEspecial ? 450 : 420; // 7:30 o 7:00
+      baseSalida = 900; // 15:00
+    } else {
+      baseEntrada = 900; // 15:00 para todos
+      baseSalida = esEspecial ? 1350 : 1380; // 22:30 o 23:00
+    }
+
+    const clave = nombre;
+
+    if (!datos[clave]) {
+      datos[clave] = {
+        tardeManana: 0,
+        tardeTarde: 0,
+        antesManana: 0,
+        antesTarde: 0
+      };
+    }
+
+    if (tipo === "entrada") {
+      if (minutos > baseEntrada) {
+        esTurnoManana ? datos[clave].tardeManana++ : datos[clave].tardeTarde++;
+      }
+    }
+
+    if (tipo === "salida") {
+      if (minutos < baseSalida) {
+        esTurnoManana ? datos[clave].antesManana++ : datos[clave].antesTarde++;
+      }
+    }
+  });
+
+  const labels = Object.keys(datos);
+  const tardeManana = labels.map(n => datos[n].tardeManana);
+  const tardeTarde = labels.map(n => datos[n].tardeTarde);
+  const antesManana = labels.map(n => datos[n].antesManana);
+  const antesTarde = labels.map(n => datos[n].antesTarde);
+
+  const ctx = document.getElementById("graficoTardes").getContext("2d");
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "🟡 Llegó tarde (mañana)",
+          data: tardeManana,
+          backgroundColor: "rgba(255, 206, 86, 0.7)"
+        },
+        {
+          label: "🟠 Llegó tarde (tarde)",
+          data: tardeTarde,
+          backgroundColor: "rgba(255, 159, 64, 0.7)"
+        },
+        {
+          label: "🔵 Se fue antes (mañana)",
+          data: antesManana,
+          backgroundColor: "rgba(54, 162, 235, 0.7)"
+        },
+        {
+          label: "🔴 Se fue antes (tarde)",
+          data: antesTarde,
+          backgroundColor: "rgba(255, 99, 132, 0.7)"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: "Análisis PRO – Llegadas tarde y salidas anticipadas por persona y turno"
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Cantidad de veces"
+          }
+        }
+      }
+    }
+  });
+};
+
+
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
