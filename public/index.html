@@ -6,18 +6,17 @@
   <title>Gym Hakkyo - Ingreso</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(reg => console.log("Service Worker registrado", reg))
-        .catch(err => console.warn("Error al registrar el Service Worker", err));
-    });
-  }
-</script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log("Service Worker registrado", reg))
+          .catch(err => console.warn("Error al registrar el Service Worker", err));
+      });
+    }
+  </script>
 </head>
 <body>
-  
   <div id="indicador-conexion" class="indicador-conexion">
     <span id="icono-conexion">🟢</span> <span id="texto-conexion">Conectado</span>
   </div>
@@ -42,7 +41,7 @@
 
     <label for="nombre">Tu nombre y apellido (opcional):</label>
     <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
-<div id="estado" class="estado">📡 Obteniendo ubicación...</div>
+    <div id="estado" class="estado">📡 Obteniendo ubicación...</div>
     <video id="video" autoplay playsinline></video>
     <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
   </div>
@@ -52,7 +51,7 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js';
     import {
-      getFirestore, collection, addDoc, serverTimestamp
+      getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs
     } from 'https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js';
 
     const firebaseConfig = {
@@ -67,14 +66,75 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const btn = document.getElementById('btn-capturar');
-    const estado = document.getElementById('estado');
+    function normalizarTexto(texto) {
+      return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    }
 
-    let lat = null;
-    let lng = null;
-    let direccion = "Ubicación no disponible";
+    function distanciaLevenshtein(a, b) {
+      const matriz = Array.from({ length: b.length + 1 }, (_, j) => [j]);
+      for (let i = 1; i <= a.length; i++) matriz[0][i] = i;
+      for (let j = 1; j <= b.length; j++) {
+        for (let i = 1; i <= a.length; i++) {
+          const costo = a[i - 1] === b[j - 1] ? 0 : 1;
+          matriz[j][i] = Math.min(
+            matriz[j - 1][i] + 1,
+            matriz[j][i - 1] + 1,
+            matriz[j - 1][i - 1] + costo
+          );
+        }
+      }
+      return matriz[b.length][a.length];
+    }
+
+    async function tieneIngresoPrevio(nombreIngresado, rol) {
+      const hoy = new Date().toISOString().split("T")[0];
+      const inicio = new Date(`${hoy}T00:00:00`);
+      const fin = new Date(`${hoy}T23:59:59`);
+
+      const q = query(
+        collection(db, "ingresos"),
+        where("rol", "==", rol),
+        where("tipo", "==", "entrada")
+      );
+
+      const snapshot = await getDocs(q);
+      const normalizadoIngresado = normalizarTexto(nombreIngresado);
+
+      return snapshot.docs.some(doc => {
+        const nombreDoc = doc.data().nombre || "";
+        const fecha = doc.data().timestamp?.toDate?.();
+        const normalizadoDB = normalizarTexto(nombreDoc);
+        const dist = distanciaLevenshtein(normalizadoIngresado, normalizadoDB);
+        return fecha && fecha >= inicio && fecha <= fin && dist <= 2;
+      });
+    }
+
+        function mostrarEstado(texto) {
+      const estado = document.getElementById("estado");
+      estado.textContent = texto;
+      estado.style.display = "block";
+    }
+
+    function actualizarIndicadorConexion() {
+      const icono = document.getElementById("icono-conexion");
+      const texto = document.getElementById("texto-conexion");
+      const conectado = navigator.onLine;
+      icono.textContent = conectado ? "🟢" : "🔴";
+      texto.textContent = conectado ? "Conectado" : "Sin conexión";
+    }
+
+    function distanciaMetros(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const rad = Math.PI / 180;
+      const dLat = (lat2 - lat1) * rad;
+      const dLon = (lon2 - lon1) * rad;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
 
     const sedes = [
       { nombre: "Santa Fe", lat: -34.58088797316031, lng: -58.422237561895855 },
@@ -86,22 +146,12 @@
       { nombre: "Ciudad", lat: -34.543588364646936, lng: -58.45859547538972 }
     ];
 
-    function distanciaMetros(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const rad = Math.PI / 180;
-      const dLat = (lat2 - lat1) * rad;
-      const dLon = (lon2 - lon1) * rad;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
     function detectarSedePorCoordenadas(latActual, lngActual) {
       let sedeDetectada = "No detectada";
       let menorDistancia = Infinity;
-
       for (const sede of sedes) {
         const dist = distanciaMetros(latActual, lngActual, sede.lat, sede.lng);
-        if (dist < 10 && dist < menorDistancia) {
+        if (dist < 150 && dist < menorDistancia) {
           menorDistancia = dist;
           sedeDetectada = sede.nombre;
         }
@@ -119,61 +169,25 @@
       }
     }
 
-    function mostrarEstado(texto) {
-      estado.textContent = texto;
-      estado.style.display = "block";
-    }
-
-    function actualizarIndicadorConexion() {
-      const icono = document.getElementById("icono-conexion");
-      const texto = document.getElementById("texto-conexion");
-      const conectado = navigator.onLine;
-
-      icono.textContent = conectado ? "🟢" : "🔴";
-      texto.textContent = conectado ? "Conectado" : "Sin conexión";
-    }
-
-    let deferredPrompt;
-const btnInstalar = document.getElementById("btn-instalar");
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  btnInstalar.style.display = "inline-block";
-});
-
-btnInstalar.addEventListener("click", async () => {
-  if (!deferredPrompt) return;
-  btnInstalar.style.display = "none";
-  deferredPrompt.prompt();
-  const result = await deferredPrompt.userChoice;
-  if (result.outcome === 'accepted') {
-    mostrarEstado("✅ App instalada correctamente.");
-  } else {
-    mostrarEstado("❌ Instalación cancelada.");
-  }
-  deferredPrompt = null;
-});
-
-
     async function guardarIngreso(data) {
-      const clave = `${data.rol}-${data.nombre || "anonimo"}`;
-
-      if (!navigator.onLine) {
-        // VALIDACIÓN: No se puede guardar salida sin entrada previa
-        if (data.tipo === "salida") {
-          const activos = JSON.parse(localStorage.getItem("fichajesActivos") || "{}");
-          if (!activos[clave]) {
-            alert("⚠️ No se puede registrar una salida sin haber fichado una entrada.");
-            return;
-          }
-          delete activos[clave];
-          localStorage.setItem("fichajesActivos", JSON.stringify(activos));
-        } else if (data.tipo === "entrada") {
-          const activos = JSON.parse(localStorage.getItem("fichajesActivos") || "{}");
-          activos[clave] = true;
-          localStorage.setItem("fichajesActivos", JSON.stringify(activos));
+      if (data.tipo === "salida" && navigator.onLine) {
+        const ok = await tieneIngresoPrevio(data.nombre, data.rol);
+        if (!ok) {
+          alert("⚠️ No se puede registrar una salida sin haber hecho una entrada previa hoy.");
+          return;
         }
+      }
+
+      const clave = `${data.rol}-${data.nombre || "anonimo"}`;
+      if (!navigator.onLine) {
+        const activos = JSON.parse(localStorage.getItem("fichajesActivos") || "{}");
+        if (data.tipo === "salida" && !activos[clave]) {
+          alert("⚠️ No se puede registrar una salida sin haber fichado una entrada.");
+          return;
+        }
+        if (data.tipo === "entrada") activos[clave] = true;
+        else delete activos[clave];
+        localStorage.setItem("fichajesActivos", JSON.stringify(activos));
 
         const pendientes = JSON.parse(localStorage.getItem("ingresosPendientes") || "[]");
         pendientes.push({ ...data, fechaLocal: new Date().toISOString() });
@@ -182,7 +196,6 @@ btnInstalar.addEventListener("click", async () => {
         return;
       }
 
-      // Guardado online
       try {
         await addDoc(collection(db, "ingresos"), {
           ...data,
@@ -216,8 +229,12 @@ btnInstalar.addEventListener("click", async () => {
       mostrarEstado("✔️ Fichajes pendientes sincronizados.");
     }
 
+    let lat = null;
+    let lng = null;
+    let direccion = "Ubicación no disponible";
+
     navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => { video.srcObject = stream; })
+      .then(stream => { document.getElementById("video").srcObject = stream; })
       .catch(err => { mostrarEstado("❌ Error accediendo a la cámara"); });
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -225,19 +242,20 @@ btnInstalar.addEventListener("click", async () => {
       lng = pos.coords.longitude;
       direccion = await obtenerDireccion(lat, lng);
       mostrarEstado("✅ Ubicación lista. Ya podés fichar.");
-      btn.disabled = false;
+      document.getElementById("btn-capturar").disabled = false;
     }, () => {
       mostrarEstado("⚠️ No se pudo obtener ubicación.");
-      btn.disabled = false;
+      document.getElementById("btn-capturar").disabled = false;
     });
 
-    btn.addEventListener("click", async () => {
+    document.getElementById("btn-capturar").addEventListener("click", async () => {
       const rol = document.getElementById("rol").value;
       const accion = document.getElementById("accion").value;
       const nombre = document.getElementById("nombre").value.trim();
-
       if (!rol || !accion) return alert("⚠️ Completá los datos obligatorios.");
 
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext('2d').drawImage(video, 0, 0);
@@ -263,44 +281,10 @@ btnInstalar.addEventListener("click", async () => {
     });
     window.addEventListener("offline", actualizarIndicadorConexion);
     actualizarIndicadorConexion();
-  
-
-// Mostrar siempre en Android (Chrome/Edge)
-function esAndroid() {
-  return /android/i.test(navigator.userAgent);
-}
-
-if (esAndroid()) {
-  btnInstalar.style.display = "block";
-}
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-});
-
-btnInstalar.addEventListener("click", async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    if (result.outcome === 'accepted') {
-      mostrarEstado("✅ App instalada correctamente.");
-    } else {
-      mostrarEstado("❌ Instalación cancelada.");
-    }
-    deferredPrompt = null;
-  } else {
-    alert("📲 Para instalar esta app:\n1. Tocá los tres puntos arriba a la derecha en Chrome\n2. Elegí 'Agregar a pantalla de inicio'");
-  }
-});
-
-    
-    
   </script>
 
   <button id="btn-instalar" style="display:none;" class="btn-instalar">
-  📲 Instalar App
-</button>
-
+    📲 Instalar App
+  </button>
 </body>
 </html>
