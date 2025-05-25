@@ -48,11 +48,8 @@
               <option value="salida">Solo salidas</option>
             </select>
             <input type="date" id="filtro-fecha" />
-            <button id="limpiarFiltros">🔄 Limpiar filtros</button>
-          </div>
-        </div>
 
-        <div class="filtro-derecha">
+             <div class="filtro-derecha">
           <label for="desde">Desde</label>
           <input type="date" id="fecha-desde" />
           <label for="hasta">Hasta</label>
@@ -60,6 +57,10 @@
           <button onclick="exportarExcel()">📤 Exportar a Excel</button>
           <button onclick="exportarAnalisisPro()">📥 Exportar análisis PRO</button>
           <canvas id="graficoTardes" style="max-width:100%; margin-top: 2rem;"></canvas>
+        </div>
+        
+            <button id="limpiarFiltros">🔄 Limpiar filtros</button>
+          </div>
         </div>
       </div>
 
