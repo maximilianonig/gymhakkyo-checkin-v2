@@ -286,5 +286,36 @@
   <button id="btn-instalar" style="display:none;" class="btn-instalar">
     📲 Instalar App
   </button>
+
+  <script>
+  let deferredPrompt;
+  const btnInstalar = document.getElementById("btn-instalar");
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstalar.style.display = "inline-block"; // muestra el botón
+
+    btnInstalar.addEventListener('click', () => {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(choice => {
+        if (choice.outcome === 'accepted') {
+          console.log('✅ App instalada');
+        } else {
+          console.log('❌ Instalación cancelada');
+        }
+        deferredPrompt = null;
+        btnInstalar.style.display = "none";
+      });
+    });
+  });
+
+  // Oculta el botón si ya está instalada
+  window.addEventListener("appinstalled", () => {
+    btnInstalar.style.display = "none";
+    console.log("✅ App ya instalada");
+  });
+</script>
+
 </body>
 </html>
