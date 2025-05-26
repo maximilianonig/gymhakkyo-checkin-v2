@@ -99,16 +99,18 @@
       }
     });
 
-    onAuthStateChanged(auth, user => {
-      if (user) {
-        document.getElementById("login-section").style.display = "none";
-        document.getElementById("admin-panel").style.display = "block";
-        cargarRegistros();
-      } else {
-        document.getElementById("login-section").style.display = "block";
-        document.getElementById("admin-panel").style.display = "none";
-      }
-    });
+onAuthStateChanged(auth, user => {
+  if (user && user.email === "admin@gymhakkyo.com.ar") { // 🔐 Cambiá por tu email
+    document.getElementById("login-section").style.display = "none";
+    document.getElementById("admin-panel").style.display = "block";
+    cargarRegistros();
+    
+  } else {
+    alert("Acceso denegado.");
+    signOut(auth);
+  }
+});
+
 
     window.logout = () => signOut(auth);
 

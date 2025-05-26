@@ -104,22 +104,21 @@ captureButton.addEventListener("click", async () => {
   }
 
 try {
-  await addDoc(collection(db, "ingresos"), {
-    rol,
-    imagenBase64,
-    hora: obtenerHoraFormateada(),
-    direccion,
-    ubicacion: {
-      lat: ubicacion?.coords?.latitude || null,
-      lng: ubicacion?.coords?.longitude || null
-    },
-    timestamp: serverTimestamp()
-  });
-  console.log("✅ Ingreso guardado correctamente");
-} catch (e) {
-  console.error("❌ Error al guardar ingreso:", e);
-}
+  const accion = document.getElementById("accion")?.value || "entrada";
+
+await addDoc(collection(db, "ingresos"), {
+  rol,
+  tipo: accion, // ✅ este campo es obligatorio para Firestore
+  imagenBase64,
+  hora: obtenerHoraFormateada(),
+  direccion,
+  ubicacion: {
+    lat: ubicacion?.lat || null,
+    lng: ubicacion?.lng || null
+  },
+  timestamp: serverTimestamp()
 });
+
 
 iniciarCamara();
 
