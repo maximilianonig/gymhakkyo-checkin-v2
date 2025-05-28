@@ -31,7 +31,6 @@ let stream;
 let ubicacion = null;
 let direccion = "Ubicación no disponible";
 
-console.log("✅ scripts.js CARGADO");
 
 
 async function initCamera() {
@@ -158,4 +157,3 @@ window.onload = () => {
   initCamera();
   obtenerUbicacion();
 };
-
