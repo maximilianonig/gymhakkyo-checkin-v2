@@ -249,7 +249,7 @@
       document.getElementById("btn-capturar").disabled = false;
     });
 
-document.getElementById("btn-capturar").addEventListener("click", async () => {
+    document.getElementById("btn-capturar").addEventListener("click", async () => {
   const btn = document.getElementById("btn-capturar");
   const bloqueo = document.getElementById("pantalla-bloqueo");
   btn.disabled = true;
@@ -276,23 +276,19 @@ document.getElementById("btn-capturar").addEventListener("click", async () => {
   const sede = detectarSedePorCoordenadas(lat, lng);
   const hora = new Date().toLocaleString("es-AR");
 
-  if (accion === "salida") {
-    const ingresoPrevio = await tieneIngresoPrevio(nombre, rol, sede);
-    if (!ingresoPrevio) {
-      bloqueo.style.display = "none";
-      btn.disabled = false;
-      alert("⚠️ No hay ingreso previo registrado.");
-      return;
-    }
-    await guardarSalida({ tipo: "salida", rol, nombre, direccion, sede, imagenBase64, hora });
-  } else {
-    await guardarIngreso({ tipo: "entrada", rol, nombre, direccion, sede, imagenBase64, hora });
-  }
+  await guardarIngreso({
+    tipo: accion,
+    rol,
+    nombre: nombre || null,
+    direccion,
+    sede,
+    imagenBase64,
+    hora
+  });
 
   bloqueo.textContent = "✅ Fichaje realizado correctamente.";
   setTimeout(() => location.reload(), 1500);
 });
-
 
 
     window.addEventListener("online", () => {
