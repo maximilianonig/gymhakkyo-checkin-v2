@@ -43,6 +43,7 @@
     <input type="text" id="nombre" placeholder="Ej: Valeria Gómez" />
     <div id="estado" class="estado">📡 Obteniendo ubicación...</div>
     <video id="video" autoplay playsinline></video>
+    <div id="preview-container"></div>
     <button id="btn-capturar" disabled>📸 Sacar Selfie</button>
   </div>
 
@@ -249,31 +250,46 @@
     });
 
     document.getElementById("btn-capturar").addEventListener("click", async () => {
-      const rol = document.getElementById("rol").value;
-      const accion = document.getElementById("accion").value;
-      const nombre = document.getElementById("nombre").value.trim();
-      if (!rol || !accion) return alert("⚠️ Completá los datos obligatorios.");
+  const btn = document.getElementById("btn-capturar");
+  const bloqueo = document.getElementById("pantalla-bloqueo");
+  btn.disabled = true;
+  bloqueo.style.display = "flex";
+  bloqueo.textContent = "Registrando ingreso...";
 
-      const video = document.getElementById("video");
-      const canvas = document.getElementById("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      const imagenBase64 = canvas.toDataURL('image/jpeg');
+  const rol = document.getElementById("rol").value;
+  const accion = document.getElementById("accion").value;
+  const nombre = document.getElementById("nombre").value.trim();
+  if (!rol || !accion) {
+    alert("⚠️ Completá los datos obligatorios.");
+    btn.disabled = false;
+    bloqueo.style.display = "none";
+    return;
+  }
 
-      const sede = detectarSedePorCoordenadas(lat, lng);
-      const hora = new Date().toLocaleString("es-AR");
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const imagenBase64 = canvas.toDataURL('image/jpeg');
 
-      await guardarIngreso({
-        tipo: accion,
-        rol,
-        nombre: nombre || null,
-        direccion,
-        sede,
-        imagenBase64,
-        hora
-      });
-    });
+  const sede = detectarSedePorCoordenadas(lat, lng);
+  const hora = new Date().toLocaleString("es-AR");
+
+  await guardarIngreso({
+    tipo: accion,
+    rol,
+    nombre: nombre || null,
+    direccion,
+    sede,
+    imagenBase64,
+    hora
+  });
+
+  bloqueo.textContent = "✅ Fichaje realizado correctamente.";
+  setTimeout(() => location.reload(), 1500);
+});
+
 
     window.addEventListener("online", () => {
       actualizarIndicadorConexion();
@@ -316,6 +332,6 @@
     console.log("✅ App ya instalada");
   });
 </script>
-
+<div id="pantalla-bloqueo">Registrando ingreso...</div>
 </body>
 </html>

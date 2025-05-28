@@ -1,9 +1,16 @@
+// scripts.js COMPLETO con bloqueos, previsualización y recarga
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
 import {
   getFirestore,
   collection,
   addDoc,
-  serverTimestamp
+  getDocs,
+  query,
+  where,
+  Timestamp,
+  serverTimestamp,
+  orderBy
 } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -18,108 +25,137 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const video = document.querySelector("video");
-const captureButton = document.getElementById("capture");
-const rolSelect = document.getElementById("rol");
-
+const video = document.getElementById("video");
+const captureButton = document.getElementById("captureButton");
 let stream;
+let ubicacion = null;
+let direccion = "Ubicación no disponible";
 
-function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  signInWithEmailAndPassword(auth, email, password)
-    .catch(error => {
-      document.getElementById("errorMsg").textContent = error.message;
-    });
-}
-
-document.getElementById("loginBtn").addEventListener("click", login);
+console.log("✅ scripts.js CARGADO");
 
 
-async function iniciarCamara() {
+async function initCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream;
-  } catch (err) {
-    console.error("No se pudo acceder a la cámara:", err);
+  } catch (error) {
+    console.error("Error al acceder a la cámara:", error);
   }
 }
-
-async function obtenerDireccionDesdeUbicacion(ubicacion) {
-  const { latitude, longitude } = ubicacion.coords;
-  try {
-    const res = await fetch("https://us-central1-gymhakkyo-ingreso.cloudfunctions.net/api/reverse-geocode", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ lat: latitude, lng: longitude })
-    });
-
-    const data = await res.json();
-    console.log("✅ Dirección:", data);
-    return data.direccion || "Dirección no disponible";
-  } catch (e) {
-    console.error("❌ Error al traducir coordenadas:", e);
-    return "Dirección no disponible";
-  }
-}
-
 
 function obtenerHoraFormateada() {
   const ahora = new Date();
-  return ahora.toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires"
+  const horas = ahora.getHours().toString().padStart(2, "0");
+  const minutos = ahora.getMinutes().toString().padStart(2, "0");
+  return `${horas}:${minutos}`;
+}
+
+async function obtenerUbicacion() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject("Geolocalización no soportada");
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        ubicacion = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        resolve();
+      },
+      error => {
+        console.error("Error obteniendo ubicación:", error);
+        reject(error);
+      }
+    );
   });
 }
 
+async function tieneIngresoPrevio(rol) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const inicioDelDia = Timestamp.fromDate(hoy);
+
+  const q = query(
+    collection(db, "ingresos"),
+    where("rol", "==", rol),
+    where("tipo", "==", "entrada"),
+    where("timestamp", ">=", inicioDelDia),
+    orderBy("timestamp", "desc")
+  );
+
+  const querySnapshot = await getDocs(q);
+  return !querySnapshot.empty;
+}
+
 captureButton.addEventListener("click", async () => {
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0);
-  const imagenBase64 = canvas.toDataURL("image/jpeg");
+  captureButton.disabled = true;
 
-  const rol = rolSelect.value;
-
-  let ubicacion = null;
-  let direccion = "Dirección no disponible";
-
-  if ("geolocation" in navigator) {
-    try {
-      const pos = await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true
-        })
-      );
-      ubicacion = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      };
-      direccion = await obtenerDireccionDesdeUbicacion(pos);
-    } catch (e) {
-      console.warn("No se pudo obtener la ubicación:", e);
+  try {
+    if (!stream) {
+      alert("La cámara no está activa.");
+      return;
     }
+
+    const rol = document.getElementById("rol")?.value;
+    const accion = document.getElementById("accion")?.value || "entrada";
+
+    if (!rol || !accion) {
+      alert("Por favor seleccioná tu rol y si es entrada o salida.");
+      return;
+    }
+
+    await obtenerUbicacion();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imagenBase64 = canvas.toDataURL("image/jpeg");
+
+    const previewContainer = document.getElementById("preview-container");
+    if (previewContainer) {
+      previewContainer.innerHTML = "";
+      const imgPreview = document.createElement("img");
+      imgPreview.src = imagenBase64;
+      imgPreview.style.maxWidth = "100%";
+      previewContainer.appendChild(imgPreview);
+    }
+
+    if (accion === "salida") {
+      const yaIngreso = await tieneIngresoPrevio(rol);
+      if (!yaIngreso) {
+        alert("No se detectó un ingreso previo. No podés fichar salida.");
+        return;
+      }
+    }
+
+    await addDoc(collection(db, "ingresos"), {
+      rol,
+      tipo: accion,
+      imagenBase64,
+      hora: obtenerHoraFormateada(),
+      direccion,
+      ubicacion: {
+        lat: ubicacion.lat,
+        lng: ubicacion.lng
+      },
+      timestamp: serverTimestamp()
+    });
+
+    alert("✅ Ingreso registrado con éxito.");
+    setTimeout(() => window.location.reload(), 2000);
+
+  } catch (error) {
+    console.error("Error al registrar ingreso:", error);
+    alert("Ocurrió un error al guardar el ingreso.");
+    captureButton.disabled = false;
   }
-
-try {
-  const accion = document.getElementById("accion")?.value || "entrada";
-
-await addDoc(collection(db, "ingresos"), {
-  rol,
-  tipo: accion, // ✅ este campo es obligatorio para Firestore
-  imagenBase64,
-  hora: obtenerHoraFormateada(),
-  direccion,
-  ubicacion: {
-    lat: ubicacion?.lat || null,
-    lng: ubicacion?.lng || null
-  },
-  timestamp: serverTimestamp()
 });
 
+window.onload = () => {
+  initCamera();
+  obtenerUbicacion();
+};
 
-iniciarCamara();
-
-document.getElementById("loginBtn").addEventListener("click", login);
