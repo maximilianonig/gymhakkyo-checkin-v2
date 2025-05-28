@@ -254,7 +254,7 @@
   const bloqueo = document.getElementById("pantalla-bloqueo");
   btn.disabled = true;
   bloqueo.style.display = "flex";
-  bloqueo.textContent = "Registrando ingreso...";
+  bloqueo.textContent = "Registrando fichaje...";
 
   const rol = document.getElementById("rol").value;
   const accion = document.getElementById("accion").value;
@@ -297,6 +297,12 @@
     });
     window.addEventListener("offline", actualizarIndicadorConexion);
     actualizarIndicadorConexion();
+
+    async function guardarSalida(salida) {
+  const docRef = collection(db, "salidas");
+  await addDoc(docRef, salida);
+}
+
   </script>
 
   <button id="btn-instalar" style="display:none;" class="btn-instalar">
