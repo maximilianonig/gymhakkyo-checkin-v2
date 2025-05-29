@@ -7,13 +7,31 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then(reg => console.log("Service Worker registrado", reg))
-          .catch(err => console.warn("Error al registrar el Service Worker", err));
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').then(reg => {
+      console.log("✅ Service Worker registrado");
+
+      if (reg.waiting) {
+        reg.waiting.postMessage('SKIP_WAITING');
+        window.location.reload();
+      }
+
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            newWorker.postMessage('SKIP_WAITING');
+            window.location.reload();
+          }
+        });
       });
-    }
+    }).catch(err => {
+      console.warn("⚠️ Error al registrar SW", err);
+    });
+  });
+}
+
   </script>
 </head>
 <body>
@@ -91,28 +109,35 @@
       return matriz[b.length][a.length];
     }
 
-    async function tieneIngresoPrevio(nombreIngresado, rol) {
-      const hoy = new Date().toISOString().split("T")[0];
-      const inicio = new Date(`${hoy}T00:00:00`);
-      const fin = new Date(`${hoy}T23:59:59`);
+    async function tieneIngresoPrevio(nombre) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const inicio = new Date(hoy);
+  const fin = new Date();
+  const normalizadoIngresado = normalizarTexto(nombre);
 
-      const q = query(
-        collection(db, "ingresos"),
-        where("rol", "==", rol),
-        where("tipo", "==", "entrada")
-      );
+  const ref = collection(db, "ingresos");
+  const q = query(ref, where("tipo", "==", "entrada"), where("timestamp", ">", hoy));
 
-      const snapshot = await getDocs(q);
-      const normalizadoIngresado = normalizarTexto(nombreIngresado);
+  for (let intento = 0; intento < 3; intento++) {
+    const snapshot = await getDocs(q);
+    
+    const encontrado = snapshot.docs.some(doc => {
+      const nombreDoc = doc.data().nombre || "";
+      const fecha = doc.data().timestamp?.toDate?.();
+      const normalizadoDB = normalizarTexto(nombreDoc);
+      const dist = distanciaLevenshtein(normalizadoIngresado, normalizadoDB);
+      return fecha && fecha >= inicio && fecha <= fin && dist <= 2;
+    });
 
-      return snapshot.docs.some(doc => {
-        const nombreDoc = doc.data().nombre || "";
-        const fecha = doc.data().timestamp?.toDate?.();
-        const normalizadoDB = normalizarTexto(nombreDoc);
-        const dist = distanciaLevenshtein(normalizadoIngresado, normalizadoDB);
-        return fecha && fecha >= inicio && fecha <= fin && dist <= 2;
-      });
-    }
+    if (encontrado) return true;
+
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  return false;
+}
+
 
         function mostrarEstado(texto) {
       const estado = document.getElementById("estado");
