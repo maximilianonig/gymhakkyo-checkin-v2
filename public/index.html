@@ -26,6 +26,16 @@ if ('serviceWorker' in navigator) {
           }
         });
       });
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) {
+        console.log("♻️ SW activado. Recargando app...");
+        window.location.reload();
+        refreshing = true;
+      }
+    });
+
     }).catch(err => {
       console.warn("⚠️ Error al registrar SW", err);
     });
