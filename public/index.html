@@ -7,13 +7,31 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then(reg => console.log("Service Worker registrado", reg))
-          .catch(err => console.warn("Error al registrar el Service Worker", err));
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').then(reg => {
+      console.log("✅ Service Worker registrado");
+
+      if (reg.waiting) {
+        reg.waiting.postMessage('SKIP_WAITING');
+        window.location.reload();
+      }
+
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            newWorker.postMessage('SKIP_WAITING');
+            window.location.reload();
+          }
+        });
       });
-    }
+    }).catch(err => {
+      console.warn("⚠️ Error al registrar SW", err);
+    });
+  });
+}
+
   </script>
 </head>
 <body>

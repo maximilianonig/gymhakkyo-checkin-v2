@@ -1,27 +1,50 @@
-const CACHE_NAME = 'hakkyo-cache-v1';
+const CACHE_NAME = 'hakkyo-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/styles.css',
-  '/scripts.js',
   '/manifest.json',
   '/assets/hakkyogymsinfondo.png',
   '/assets/icon-192.png',
   '/assets/icon-512.png'
 ];
 
-// Instala el service worker y guarda archivos en caché
-self.addEventListener('install', function(event) {
+self.addEventListener('install', function (event) {
+  self.skipWaiting(); // ⏩ Fuerza instalación inmediata
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(urlsToCache);
+    })
   );
 });
 
-// Intercepta peticiones y responde desde caché si está disponible
-self.addEventListener('fetch', function(event) {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    caches.keys().then(cacheNames =>
+      Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName); // 🧹 Borra cachés viejos
+          }
+        })
+      )
+    )
   );
+  self.clients.claim(); // 🔄 Reclama el control de las páginas
+});
+
+// Intercepta peticiones y sirve desde caché si puede
+self.addEventListener('fetch', function (event) {
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  );
+});
+
+// 🔁 Recarga automática si hay nueva versión
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
