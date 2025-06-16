@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hakkyo-cache-v2';
+const CACHE_NAME = 'hakkyo-cache-v2.5';
 const urlsToCache = [
   '/',
   '/index.html',
