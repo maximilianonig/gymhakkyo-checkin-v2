@@ -73,7 +73,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+   import { getFirestore, collection, query, orderBy, where, limit, startAfter, getDocs } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
@@ -115,92 +115,159 @@ onAuthStateChanged(auth, user => {
     window.logout = () => signOut(auth);
 
     function cargarRegistros() {
-      const contenedor = document.getElementById("lista-ingresos");
-      const filtroRol = document.getElementById("filtro-rol");
-      const filtroSede = document.getElementById("filtro-sede");
-      const filtroFecha = document.getElementById("filtro-fecha");
-      const filtroTipo = document.getElementById("filtro-tipo");
-      const btnLimpiarFiltros = document.getElementById("limpiarFiltros");
-      const contadorHoy = document.getElementById("contador-hoy");
-      let cache = [];
+    // Variables para controlar la carga
+    let lastVisibleDoc = null; // Guardará el último registro visto para saber por dónde seguir
+    let isLoading = false;     // Para no hacer clic en "cargar más" muchas veces seguidas
+    let cache = [];            // Aquí guardaremos todos los registros que se vayan cargando
 
-      function renderizar(data) {
-        const rol = filtroRol.value.toLowerCase();
-        const sede = filtroSede.value.toLowerCase();
-        const tipo = filtroTipo.value.toLowerCase();
-        const fechaFiltro = filtroFecha.value;
+    const contenedor = document.getElementById("lista-ingresos");
+    const filtroRol = document.getElementById("filtro-rol");
+    const filtroSede = document.getElementById("filtro-sede");
+    const filtroFecha = document.getElementById("filtro-fecha");
+    const filtroTipo = document.getElementById("filtro-tipo");
+    const btnLimpiarFiltros = document.getElementById("limpiarFiltros");
+    const contadorHoy = document.getElementById("contador-hoy");
 
-        contenedor.innerHTML = "";
+    // Esta es la nueva función inteligente que carga los datos por partes
+    async function cargarLoteDeRegistros() {
+        if (isLoading) return; // Si ya está cargando, no hagas nada
+        isLoading = true;
+        document.getElementById("lista-ingresos").innerHTML += "<p>Cargando...</p>";
 
-        const filtrado = data.filter(item => {
-          const itemRol = item.rol?.toLowerCase() || "";
-          const itemSede = item.sede?.toLowerCase() || "";
-          const itemTipo = item.tipo?.toLowerCase() || "entrada";
+        try {
+            // Construimos la consulta a Firebase
+            let q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
 
-          let itemFecha = "";
-          if (item.timestamp?.toDate) {
-            itemFecha = item.timestamp.toDate().toISOString().slice(0, 10);
-          }
+            // Aplicamos los filtros ANTES de descargar. ¡Esto es lo más importante!
+            const rol = filtroRol.value;
+            const sede = filtroSede.value;
+            const tipo = filtroTipo.value;
+            const fechaFiltro = filtroFecha.value;
 
-          const cumpleRol = !rol || itemRol === rol;
-          const cumpleSede = !sede || itemSede === sede;
-          const cumpleTipo = !tipo || itemTipo === tipo;
-          const cumpleFecha = !fechaFiltro || itemFecha === fechaFiltro;
+            if (rol) q = query(q, where("rol", "==", rol));
+            if (sede) q = query(q, where("sede", "==", sede));
+            if (tipo) q = query(q, where("tipo", "==", tipo));
+            if (fechaFiltro) {
+                const inicioDia = new Date(fechaFiltro + "T00:00:00");
+                const finDia = new Date(fechaFiltro + "T23:59:59");
+                q = query(q, where("timestamp", ">=", inicioDia), where("timestamp", "<=", finDia));
+            }
+            
+            // Le decimos que traiga solo 25
+            q = query(q, limit(25));
 
-          return cumpleRol && cumpleSede && cumpleTipo && cumpleFecha;
-        });
+            // Si ya hemos cargado una página, le decimos que empiece DESPUÉS del último que vimos
+            if (lastVisibleDoc) {
+                q = query(q, startAfter(lastVisibleDoc));
+            }
 
+            // Ejecutamos la consulta para obtener los documentos
+            const snapshot = await getDocs(q);
+
+            // Limpiamos el mensaje "Cargando..."
+            let pCargando = document.querySelector("#lista-ingresos p");
+            if (pCargando && pCargando.textContent === "Cargando...") {
+                pCargando.remove();
+            }
+
+            // Guardamos el último documento para la próxima vez
+            lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
+
+            // Añadimos los nuevos datos al caché
+            const nuevosDatos = snapshot.docs.map(doc => doc.data());
+            cache = [...cache, ...nuevosDatos];
+
+            renderizar(nuevosDatos, true); // true significa "añadir", no "reemplazar"
+
+            // Gestionamos el botón "Cargar Más"
+            const btnCargarMasExistente = document.getElementById("btn-cargar-mas");
+            if(btnCargarMasExistente) btnCargarMasExistente.remove();
+
+            if (snapshot.docs.length === 25) { // Si vinieron 25, es probable que haya más
+                const btnCargarMas = document.createElement("button");
+                btnCargarMas.id = "btn-cargar-mas";
+                btnCargarMas.textContent = "👇 Cargar más registros";
+                btnCargarMas.style.width = "100%";
+                btnCargarMas.style.marginTop = "1rem";
+                btnCargarMas.onclick = cargarLoteDeRegistros;
+                contenedor.insertAdjacentElement("afterend", btnCargarMas);
+            }
+
+        } catch (error) {
+            console.error("Error al cargar registros: ", error);
+            document.getElementById("lista-ingresos").innerHTML = "<p>Hubo un error. Revisa la consola (F12) para ver los detalles. Es posible que necesites crear un índice en Firebase.</p>";
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    // La función que dibuja los registros en la pantalla
+    function renderizar(data, adjuntar = false) {
+        if (!adjuntar) {
+            contenedor.innerHTML = "";
+        }
+        
+        // El contador de ingresos de hoy puede seguir funcionando como antes
         const hoy = new Date().toISOString().slice(0, 10);
-        const ingresosHoy = data.filter(i => {
-          const f = i.timestamp?.toDate?.().toISOString().slice(0, 10);
-          return f === hoy;
+        const ingresosHoy = cache.filter(i => {
+            const f = i.timestamp?.toDate?.().toISOString().slice(0, 10);
+            return f === hoy && i.tipo !== 'salida';
         }).length;
         contadorHoy.textContent = `Ingresos hoy: ${ingresosHoy}`;
+        
+        data.forEach(item => {
+            const fecha = item.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
+            const hora = item.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
+                hour: "2-digit", minute: "2-digit", hour12: false
+            }) || item.hora || "Sin hora";
 
-        filtrado.forEach(data => {
-          const fecha = data.timestamp?.toDate?.().toLocaleDateString("es-AR") || "Sin fecha";
-          const hora = data.timestamp?.toDate?.().toLocaleTimeString("es-AR", {
-            hour: "2-digit", minute: "2-digit", hour12: false
-          }) || data.hora || "Sin hora";
-
-          const div = document.createElement("div");
-          div.classList.add("ingreso");
-          div.innerHTML = `
-            <p><strong>🧑‍💼 ${data.tipo === "salida" ? "Salida" : "Ingreso"}</strong></p>
-            <p><strong>Rol:</strong> ${data.rol || "N/A"}</p>
-            <p><strong>Nombre:</strong> ${data.nombre || "No informado"}</p>
-            <p><strong>Dirección:</strong> ${data.direccion || "No disponible"}</p>
-            <p><strong>Sede:</strong> ${data.sede || "No detectada"}</p>
-            <p><strong>Fecha:</strong> ${fecha}</p>
-            <p><strong>Hora:</strong> ${hora}</p>
-            <img src="${data.imagenBase64}" alt="Selfie"/>
-          `;
-          contenedor.appendChild(div);
+            const div = document.createElement("div");
+            div.classList.add("ingreso");
+            div.innerHTML = `
+                <p><strong>🧑‍💼 ${item.tipo === "salida" ? "Salida" : "Ingreso"}</strong></p>
+                <p><strong>Rol:</strong> ${item.rol || "N/A"}</p>
+                <p><strong>Nombre:</strong> ${item.nombre || "No informado"}</p>
+                <p><strong>Dirección:</strong> ${item.direccion || "No disponible"}</p>
+                <p><strong>Sede:</strong> ${item.sede || "No detectada"}</p>
+                <p><strong>Fecha:</strong> ${fecha}</p>
+                <p><strong>Hora:</strong> ${hora}</p>
+                <img src="${item.imagenBase64}" alt="Selfie" loading="lazy"/>
+            `;
+            contenedor.appendChild(div);
         });
-      }
+    }
 
-      const q = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
-      onSnapshot(q, (snapshot) => {
-        cache = snapshot.docs.map(doc => doc.data());
-        renderizar(cache);
-      });
+    // Esta función reinicia todo cuando cambias un filtro
+    function aplicarFiltrosYRecargar() {
+        cache = [];
+        lastVisibleDoc = null;
+        contenedor.innerHTML = "";
+        const btnCargarMasExistente = document.getElementById("btn-cargar-mas");
+        if(btnCargarMasExistente) btnCargarMasExistente.remove();
+        cargarLoteDeRegistros();
+    }
 
-      filtroRol.addEventListener("change", () => renderizar(cache));
-      filtroSede.addEventListener("change", () => renderizar(cache));
-      filtroTipo.addEventListener("change", () => renderizar(cache));
-      filtroFecha.addEventListener("change", () => renderizar(cache));
-      btnLimpiarFiltros.addEventListener("click", () => {
+    // Conectamos los filtros a la nueva función de recarga
+    filtroRol.addEventListener("change", aplicarFiltrosYRecargar);
+    filtroSede.addEventListener("change", aplicarFiltrosYRecargar);
+    filtroTipo.addEventListener("change", aplicarFiltrosYRecargar);
+    filtroFecha.addEventListener("change", aplicarFiltrosYRecargar);
+    
+    btnLimpiarFiltros.addEventListener("click", () => {
         filtroRol.value = "";
         filtroSede.value = "";
         filtroFecha.value = "";
         filtroTipo.value = "";
-        renderizar(cache);
-      });
+        aplicarFiltrosYRecargar();
+    });
 
-      document.getElementById("btn-actualizar").addEventListener("click", () => {
-        location.reload();
-      });
-    }
+    document.getElementById("btn-actualizar").addEventListener("click", () => {
+        location.reload(); // El botón de actualizar simplemente recarga la página
+    });
+
+    // ¡Esta es la primera carga de datos cuando la página abre!
+    aplicarFiltrosYRecargar();
+}
 
 window.exportarExcel = () => {
   import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(() => {
