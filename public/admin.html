@@ -270,67 +270,94 @@ onAuthStateChanged(auth, user => {
 }
 
 window.exportarExcel = () => {
+  // Importamos la librería para crear el archivo Excel
   import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(() => {
-    const tabla = [];
+    
+    const registrosParaExportar = [];
+    const sedesEspeciales = ["Subzero", "Lacroze"]; // Sedes con horarios diferentes
 
-    const sedesEspeciales = ["Subzero", "Lacroze"];
+    // Función para convertir "HH:MM" a un total de minutos desde medianoche
+    const convertirHoraAMinutos = (horaStr) => {
+        const [horas, minutos] = horaStr.split(':').map(Number);
+        return horas * 60 + minutos;
+    };
+    
+    // Función para convertir minutos a un formato de hora "HH:MM"
+    const convertirMinutosAHora = (minutos) => {
+        const h = Math.floor(minutos / 60).toString().padStart(2, '0');
+        const m = (minutos % 60).toString().padStart(2, '0');
+        return `${h}:${m}`;
+    };
 
+    // Recorremos cada registro de ingreso/salida visible en el panel
     document.querySelectorAll(".ingreso").forEach(div => {
       const fila = {};
 
-      const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "entrada";
+      // Extraemos los datos de cada tarjeta de registro
+      const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "";
       const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
-      fila["Tipo"] = tipo.charAt(0).toUpperCase() + tipo.slice(1); // Entrada / Salida
-
+      
+      fila["Tipo de Registro"] = tipo.charAt(0).toUpperCase() + tipo.slice(1);
+      
       div.querySelectorAll("p").forEach(p => {
-        const parts = p.textContent.split(":");
-        const label = parts[0]?.trim();
-        const value = parts.slice(1).join(":").trim();
-        if (label && value) fila[label] = value;
+        const [label, ...valueParts] = p.textContent.split(":");
+        if (label && valueParts.length > 0) {
+            // Limpiamos los textos para usarlos como cabeceras en el Excel
+            const cabecera = label.trim().replace('🧑‍💼', '').trim();
+            fila[cabecera] = valueParts.join(":").trim();
+        }
       });
 
-      const horaStr = fila["Hora"];
+      const horaFichadaStr = fila["Hora"];
       const sede = fila["Sede"] || "No detectada";
 
-      if (!horaStr || !sede) {
-        fila["Minutos tarde"] = "";
-        fila["Minutos antes de irse"] = "";
-        tabla.push(fila);
-        return;
+      // Si el registro no tiene hora o sede, no podemos calcular la diferencia
+      if (!horaFichadaStr || !sede) {
+        fila["Horario Programado"] = "N/A";
+        fila["Diferencia (minutos)"] = "";
+        registrosParaExportar.push(fila);
+        return; // Pasamos al siguiente registro
       }
 
-      const [h, m] = horaStr.split(":").map(x => parseInt(x));
-      const minutosTotales = h * 60 + m;
+      const minutosFichados = convertirHoraAMinutos(horaFichadaStr);
+      const esTurnoManana = minutosFichados < 900; // 900 minutos = 15:00 PM
 
-      const esTurnoManana = minutosTotales < 900;
+      let horaBaseEntrada, horaBaseSalida;
 
-      // Definir hora base según sede y turno
-      let baseEntrada = 0;
-      let baseSalida = 0;
-
+      // Asignamos los horarios programados según el turno y la sede
       if (esTurnoManana) {
-        baseEntrada = sedesEspeciales.includes(sede) ? 450 : 420;  // 7:30 o 7:00
-        baseSalida = 900; // 15:00
+        horaBaseEntrada = sedesEspeciales.includes(sede) ? 450 : 420; // 07:30 o 07:00
+        horaBaseSalida = 900; // 15:00
       } else {
-        baseEntrada = 900; // 15:00 todos
-        baseSalida = sedesEspeciales.includes(sede) ? 1350 : 1380; // 22:30 o 23:00
+        horaBaseEntrada = 900; // 15:00
+        horaBaseSalida = sedesEspeciales.includes(sede) ? 1350 : 1380; // 22:30 o 23:00
       }
+      
+      let diferenciaEnMinutos = 0;
 
+      // Calculamos la diferencia y el horario programado
       if (tipo === "entrada") {
-        fila["Minutos tarde"] = Math.max(0, minutosTotales - baseEntrada);
-        fila["Minutos antes de irse"] = "";
+        fila["Horario Programado"] = convertirMinutosAHora(horaBaseEntrada);
+        diferenciaEnMinutos = minutosFichados - horaBaseEntrada;
       } else if (tipo === "salida") {
-        fila["Minutos tarde"] = "";
-        fila["Minutos antes de irse"] = Math.max(0, baseSalida - minutosTotales);
+        fila["Horario Programado"] = convertirMinutosAHora(horaBaseSalida);
+        diferenciaEnMinutos = minutosFichados - horaBaseSalida;
       }
-
-      tabla.push(fila);
+      
+      fila["Diferencia (minutos)"] = diferenciaEnMinutos;
+      registrosParaExportar.push(fila);
     });
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(tabla);
-    XLSX.utils.book_append_sheet(wb, ws, "Ingresos");
-    XLSX.writeFile(wb, "ingresos.xlsx");
+    // Creamos el archivo de Excel con los datos procesados
+    const libro = XLSX.utils.book_new();
+    const hoja = XLSX.utils.json_to_sheet(registrosParaExportar);
+    
+    // Ajustar el ancho de las columnas automáticamente
+    const anchoCols = Object.keys(registrosParaExportar[0] || {}).map(key => ({ wch: Math.max(key.length, 20) }));
+    hoja['!cols'] = anchoCols;
+
+    XLSX.utils.book_append_sheet(libro, hoja, "Registros Hakkyo");
+    XLSX.writeFile(libro, "registros-gym-hakkyo.xlsx");
   });
 };
 
