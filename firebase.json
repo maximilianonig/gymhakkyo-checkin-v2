@@ -5,13 +5,12 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": []
+    ]
   },
   "functions": [
     {
       "source": "functions",
-       "runtime": "nodejs18",
+      "runtime": "nodejs18",
       "codebase": "default",
       "ignore": [
         "node_modules",
@@ -21,5 +20,10 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "firestore": {
+    "indexes": "firestore.indexes.json",
+    "rules": "firestore.rules"
+  }
 }
+

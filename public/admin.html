@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Gym Hakkyo</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:,">
+
 </head>
 <body>
   <div id="login-section" class="container">
@@ -71,9 +73,17 @@
 
   <!-- Firebase y lógica -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
-   import { getFirestore, collection, query, orderBy, where, limit, startAfter, getDocs } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+     import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import {
+    getFirestore, collection, query, orderBy, where, limit, startAfter, getDocs,
+    setDoc, doc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import {
+    getMessaging, getToken, onMessage, isSupported as isMessagingSupported
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBWboAJXuO7feFynrKDefFUW2YWNEt3oF0",
@@ -87,6 +97,55 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+
+async function enablePushForAdmin() {
+    // 1) Soporte real
+    let supported = false;
+    try { supported = await isMessagingSupported(); } catch { supported = false; }
+    if (!supported) { console.warn('[FCM] no soportado'); return; }
+
+    // 2) Service Worker activo
+    const swReg = window.__swReg || await navigator.serviceWorker.getRegistration();
+    if (!swReg) { console.warn('[PUSH] No hay ServiceWorker registrado.'); return; }
+
+    // 3) Permiso de notificaciones
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+
+    // 4) Token
+    const messaging = getMessaging(app);
+    const token = await getToken(messaging, {
+      vapidKey: "BAsL1i8dAzvPxQyvgRNdqMV6Yd626n1FLwIqbhRmL-L7pIkcL_qjSr9_uYbXzOdqOi57jN_4MRW943myWhvyjzw",
+      serviceWorkerRegistration: swReg
+    });
+    if (!token) { console.warn('[FCM] no se obtuvo token'); return; }
+
+    // 5) Guardar token (ya autenticado)
+    await setDoc(doc(db, "adminTokens", token), {
+      token, ua: navigator.userAgent, createdAt: serverTimestamp()
+    }, { merge: true });
+    console.info('[PUSH] Token admin registrado.');
+
+    // 6) Mensajes en primer plano
+    onMessage(messaging, (payload) => {
+      const title = payload?.notification?.title || payload?.data?.title || "Hakkyo";
+      const body  = payload?.notification?.body  || payload?.data?.body  || "";
+      try {
+        new Notification(title, { body, icon: "//assets/icon-192.png", data: { url: payload?.data?.url || "/admin.html" } });
+      } catch {}
+    });
+  }
+
+  // Esperar sesión y luego activar push
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // ya logueado y tu código de registro de SW corrió en window.load
+      enablePushForAdmin();
+    } else {
+      console.warn('[AUTH] No hay sesión; logueate para activar push.');
+    }
+  });
+
 
     const loginBtn = document.getElementById("loginBtn");
     loginBtn.addEventListener("click", async () => {
@@ -114,6 +173,8 @@ onAuthStateChanged(auth, user => {
 
     window.logout = () => signOut(auth);
 
+
+    
     function cargarRegistros() {
     // Variables para controlar la carga
     let lastVisibleDoc = null; // Guardará el último registro visto para saber por dónde seguir
@@ -269,222 +330,244 @@ onAuthStateChanged(auth, user => {
     aplicarFiltrosYRecargar();
 }
 
-window.exportarExcel = () => {
-  // Importamos la librería para crear el archivo Excel
-  import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(() => {
-    
-    const registrosParaExportar = [];
-    const sedesEspeciales = ["Subzero", "Lacroze"]; // Sedes con horarios diferentes
+window.exportarExcel = async () => {
+    const btn = document.querySelector('button[onclick="exportarExcel()"]');
+    if (btn) { btn.disabled = true; btn.textContent = "⏳ Exportando..."; }
 
-    // Función para convertir "HH:MM" a un total de minutos desde medianoche
-    const convertirHoraAMinutos = (horaStr) => {
-        const [horas, minutos] = horaStr.split(':').map(Number);
-        return horas * 60 + minutos;
-    };
-    
-    // Función para convertir minutos a un formato de hora "HH:MM"
-    const convertirMinutosAHora = (minutos) => {
-        const h = Math.floor(minutos / 60).toString().padStart(2, '0');
-        const m = (minutos % 60).toString().padStart(2, '0');
-        return `${h}:${m}`;
-    };
-
-    // Recorremos cada registro de ingreso/salida visible en el panel
-    document.querySelectorAll(".ingreso").forEach(div => {
-      const fila = {};
-
-      // Extraemos los datos de cada tarjeta de registro
-      const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "";
-      const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
-      
-      fila["Tipo de Registro"] = tipo.charAt(0).toUpperCase() + tipo.slice(1);
-      
-      div.querySelectorAll("p").forEach(p => {
-        const [label, ...valueParts] = p.textContent.split(":");
-        if (label && valueParts.length > 0) {
-            // Limpiamos los textos para usarlos como cabeceras en el Excel
-            const cabecera = label.trim().replace('🧑‍💼', '').trim();
-            fila[cabecera] = valueParts.join(":").trim();
-        }
-      });
-
-      const horaFichadaStr = fila["Hora"];
-      const sede = fila["Sede"] || "No detectada";
-
-      // Si el registro no tiene hora o sede, no podemos calcular la diferencia
-      if (!horaFichadaStr || !sede) {
-        fila["Horario Programado"] = "N/A";
-        fila["Diferencia (minutos)"] = "";
-        registrosParaExportar.push(fila);
-        return; // Pasamos al siguiente registro
+    try {
+      // Usamos el XLSX global del <script> del final del HTML
+      if (typeof XLSX === "undefined") {
+        alert("XLSX no está disponible. Revisá el <script> al final del HTML.");
+        return;
       }
 
-      const minutosFichados = convertirHoraAMinutos(horaFichadaStr);
-      const esTurnoManana = minutosFichados < 900; // 900 minutos = 15:00 PM
+      // 1) Leer filtros actuales desde el DOM
+      const rol = document.getElementById("filtro-rol").value;
+      const sede = document.getElementById("filtro-sede").value;
+      const tipo = document.getElementById("filtro-tipo").value;
+      const fechaUnica = document.getElementById("filtro-fecha").value;  // YYYY-MM-DD
+      const desdeStr = document.getElementById("fecha-desde").value;      // YYYY-MM-DD
+      const hastaStr = document.getElementById("fecha-hasta").value;      // YYYY-MM-DD
 
-      let horaBaseEntrada, horaBaseSalida;
-
-      // Asignamos los horarios programados según el turno y la sede
-      if (esTurnoManana) {
-        horaBaseEntrada = sedesEspeciales.includes(sede) ? 450 : 420; // 07:30 o 07:00
-        horaBaseSalida = 900; // 15:00
+      // 2) Armar rango de fechas: si hay fecha única, tiene prioridad
+      let inicio = null, fin = null;
+      if (fechaUnica) {
+        inicio = new Date(fechaUnica + "T00:00:00");
+        fin    = new Date(fechaUnica + "T23:59:59");
       } else {
-        horaBaseEntrada = 900; // 15:00
-        horaBaseSalida = sedesEspeciales.includes(sede) ? 1350 : 1380; // 22:30 o 23:00
+        if (desdeStr) inicio = new Date(desdeStr + "T00:00:00");
+        if (hastaStr) fin    = new Date(hastaStr + "T23:59:59");
       }
-      
-      let diferenciaEnMinutos = 0;
 
-      // Calculamos la diferencia y el horario programado
-      if (tipo === "entrada") {
-        fila["Horario Programado"] = convertirMinutosAHora(horaBaseEntrada);
-        diferenciaEnMinutos = minutosFichados - horaBaseEntrada;
-      } else if (tipo === "salida") {
-        fila["Horario Programado"] = convertirMinutosAHora(horaBaseSalida);
-        diferenciaEnMinutos = minutosFichados - horaBaseSalida;
+      // 3) Construir la query base con filtros + orden por timestamp (requerido para el rango)
+      let qBase = query(collection(db, "ingresos"), orderBy("timestamp", "desc"));
+      if (rol)  qBase = query(qBase, where("rol", "==", rol));
+      if (sede) qBase = query(qBase, where("sede", "==", sede));
+      if (tipo) qBase = query(qBase, where("tipo", "==", tipo));
+      if (inicio) qBase = query(qBase, where("timestamp", ">=", inicio));
+      if (fin)    qBase = query(qBase, where("timestamp", "<=",   fin));
+
+      // 4) Bajar TODO con paginación
+      const batchSize = 500;
+      let all = [];
+      let lastDoc = null;
+
+      while (true) {
+        const qPage = lastDoc
+          ? query(qBase, startAfter(lastDoc), limit(batchSize))
+          : query(qBase, limit(batchSize));
+
+        const snap = await getDocs(qPage);
+        if (snap.empty) break;
+
+        all.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        lastDoc = snap.docs[snap.docs.length - 1];
+        if (snap.size < batchSize) break; // última página
       }
-      
-      fila["Diferencia (minutos)"] = diferenciaEnMinutos;
-      registrosParaExportar.push(fila);
-    });
 
-    // Creamos el archivo de Excel con los datos procesados
-    const libro = XLSX.utils.book_new();
-    const hoja = XLSX.utils.json_to_sheet(registrosParaExportar);
-    
-    // Ajustar el ancho de las columnas automáticamente
-    const anchoCols = Object.keys(registrosParaExportar[0] || {}).map(key => ({ wch: Math.max(key.length, 20) }));
-    hoja['!cols'] = anchoCols;
+      if (all.length === 0) {
+        alert("No hay registros para exportar con los filtros/rango actuales.");
+        return;
+      }
 
-    XLSX.utils.book_append_sheet(libro, hoja, "Registros Hakkyo");
-    XLSX.writeFile(libro, "registros-gym-hakkyo.xlsx");
-  });
-};
-
-   window.exportarAnalisisPro = () => {
-  const sedesEspeciales = ["Subzero", "Lacroze"];
-  const datos = {};
-
-  document.querySelectorAll(".ingreso").forEach(div => {
-    function normalizarNombre(nombre) {
-  return nombre
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-const nombreRaw = div.querySelector("p:nth-child(3)")?.textContent.split(":")[1]?.trim() || "No informado";
-const nombre = normalizarNombre(nombreRaw);
-
-    const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "";
-    const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
-    const sede = div.querySelector("p:nth-child(5)")?.textContent.split(":")[1]?.trim() || "";
-    const horaStr = div.querySelector("p:nth-child(7)")?.textContent.split(":")[1]?.trim() || "";
-
-    if (!horaStr) return;
-
-    const [h, m] = horaStr.split(":").map(x => parseInt(x));
-    const minutos = h * 60 + m;
-
-    const esEspecial = sedesEspeciales.includes(sede);
-    const esTurnoManana = minutos < 900;
-
-    // Hora base según sede y turno
-    let baseEntrada = 0;
-    let baseSalida = 0;
-
-    if (esTurnoManana) {
-      baseEntrada = esEspecial ? 450 : 420; // 7:30 o 7:00
-      baseSalida = 900; // 15:00
-    } else {
-      baseEntrada = 900; // 15:00 para todos
-      baseSalida = esEspecial ? 1350 : 1380; // 22:30 o 23:00
-    }
-
-    const clave = nombre;
-
-    if (!datos[clave]) {
-      datos[clave] = {
-        tardeManana: 0,
-        tardeTarde: 0,
-        antesManana: 0,
-        antesTarde: 0
+      // 5) Transformar a filas de Excel (fecha/hora legibles + cálculo de horario programado)
+      const sedesEspeciales = ["Subzero", "Lacroze"];
+      const pad2 = (n) => String(n).padStart(2, "0");
+      const toMinutes = (hhmm) => {
+        const [h, m] = (hhmm || "").split(":").map(Number);
+        return isFinite(h) && isFinite(m) ? h * 60 + m : null;
       };
-    }
+      const toHHMM = (min) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
 
-    if (tipo === "entrada") {
-      if (minutos > baseEntrada) {
-        esTurnoManana ? datos[clave].tardeManana++ : datos[clave].tardeTarde++;
-      }
-    }
+      const rows = all.map(rec => {
+        const dt = rec.timestamp?.toDate?.() ? rec.timestamp.toDate() : null;
+        const fecha = dt ? `${pad2(dt.getDate())}/${pad2(dt.getMonth()+1)}/${dt.getFullYear()}` : "";
+        const hora  = dt ? `${pad2(dt.getHours())}:${pad2(dt.getMinutes())}` : (rec.hora || "");
+        const sedeVal = rec.sede || "No detectada";
+        const tipoVal = rec.tipo === "salida" ? "Salida" : "Entrada";
 
-    if (tipo === "salida") {
-      if (minutos < baseSalida) {
-        esTurnoManana ? datos[clave].antesManana++ : datos[clave].antesTarde++;
-      }
-    }
-  });
+        // Por defecto: si no hay sede válida, no calculamos programado
+        let horarioProg = "N/A";
+        let diffMin = "";
 
-  const labels = Object.keys(datos);
-  const tardeManana = labels.map(n => datos[n].tardeManana);
-  const tardeTarde = labels.map(n => datos[n].tardeTarde);
-  const antesManana = labels.map(n => datos[n].antesManana);
-  const antesTarde = labels.map(n => datos[n].antesTarde);
-
-  const ctx = document.getElementById("graficoTardes").getContext("2d");
-  new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "🟡 Llegó tarde (mañana)",
-          data: tardeManana,
-          backgroundColor: "rgba(255, 206, 86, 0.7)"
-        },
-        {
-          label: "🟠 Llegó tarde (tarde)",
-          data: tardeTarde,
-          backgroundColor: "rgba(255, 159, 64, 0.7)"
-        },
-        {
-          label: "🔵 Se fue antes (mañana)",
-          data: antesManana,
-          backgroundColor: "rgba(54, 162, 235, 0.7)"
-        },
-        {
-          label: "🔴 Se fue antes (tarde)",
-          data: antesTarde,
-          backgroundColor: "rgba(255, 99, 132, 0.7)"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: "Análisis PRO – Llegadas tarde y salidas anticipadas por persona y turno"
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Cantidad de veces"
+        if (sedeVal && sedeVal !== "No detectada" && hora) {
+          const fichMin = toMinutes(hora);
+          if (fichMin !== null) {
+            const esManiana = fichMin < 900; // 15:00
+            let baseEnt, baseSal;
+            if (esManiana) {
+              baseEnt = sedesEspeciales.includes(sedeVal) ? 450 : 420; // 7:30 / 7:00
+              baseSal = 900; // 15:00
+            } else {
+              baseEnt = 900;  // 15:00
+              baseSal = sedesEspeciales.includes(sedeVal) ? 1350 : 1380; // 22:30 / 23:00
+            }
+            if (rec.tipo === "entrada") { horarioProg = toHHMM(baseEnt); diffMin = fichMin - baseEnt; }
+            else                         { horarioProg = toHHMM(baseSal); diffMin = fichMin - baseSal; }
           }
         }
-      }
+
+        return {
+          "Tipo de Registro": tipoVal,
+          "Rol": rec.rol || "",
+          "Nombre": rec.nombre || "",
+          "Dirección": rec.direccion || "",
+          "Sede": sedeVal,
+          "Fecha": fecha,
+          "Hora": hora,
+          "Horario Programado": horarioProg,
+          "Diferencia (minutos)": diffMin
+        };
+      });
+
+      // 6) Armar y descargar el Excel
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = Object.keys(rows[0]).map(k => ({ wch: Math.max(18, k.length) }));
+      XLSX.utils.book_append_sheet(wb, ws, "Registros Hakkyo");
+
+      const nombreArchivo =
+        `registros-${fechaUnica || (desdeStr || "ini") + "_" + (hastaStr || "fin")}.xlsx`;
+      XLSX.writeFile(wb, nombreArchivo);
+
+    } catch (err) {
+      console.error(err);
+      alert("Error exportando. Mirá la consola (F12). Es posible que Firestore te pida crear un índice.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "📤 Exportar a Excel"; }
     }
-  });
-};
+  };
+
+  window.exportarAnalisisPro = () => {
+    const sedesEspeciales = ["Subzero", "Lacroze"];
+    const datos = {}; // 👈 Asegurate de que ESTA línea esté ADENTRO de la función
+
+    document.querySelectorAll(".ingreso").forEach(div => {
+      // Normaliza el nombre para agrupar
+      function normalizarNombre(nombre) {
+        return (nombre || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+      }
+
+      const nombreRaw = div.querySelector("p:nth-child(3)")?.textContent.split(":")[1]?.trim() || "No informado";
+      const nombre = normalizarNombre(nombreRaw);
+
+      const tipoTexto = div.querySelector("p strong")?.textContent?.toLowerCase() || "";
+      const tipo = tipoTexto.includes("salida") ? "salida" : "entrada";
+      const sede = div.querySelector("p:nth-child(5)")?.textContent.split(":")[1]?.trim() || "";
+      const horaStr = div.querySelector("p:nth-child(7)")?.textContent.split(":")[1]?.trim() || "";
+
+      // Convertir hora a minutos
+      const [h, m] = (horaStr || "00:00").split(":").map(Number);
+      const minutos = h * 60 + m;
+      const esManiana = minutos < 900; // 15:00
+      const esEspecial = sedesEspeciales.includes(sede);
+
+      let baseEntrada, baseSalida;
+      if (esManiana) {
+        baseEntrada = esEspecial ? 450 : 420; // 7:30 / 7:00
+        baseSalida  = 900;                    // 15:00
+      } else {
+        baseEntrada = 900;                    // 15:00
+        baseSalida  = esEspecial ? 1350 : 1380; // 22:30 / 23:00
+      }
+
+      const clave = nombre;
+
+      if (!datos[clave]) {
+        datos[clave] = { tardeManana: 0, tardeTarde: 0, antesManana: 0, antesTarde: 0 };
+      }
+
+      if (tipo === "entrada" && minutos > baseEntrada) {
+        esManiana ? datos[clave].tardeManana++ : datos[clave].tardeTarde++;
+      }
+      if (tipo === "salida" && minutos < baseSalida) {
+        esManiana ? datos[clave].antesManana++ : datos[clave].antesTarde++;
+      }
+    });
+
+    // Armar datos del gráfico
+    const labels = Object.keys(datos);
+    const tardeManana = labels.map(n => datos[n].tardeManana);
+    const tardeTarde  = labels.map(n => datos[n].tardeTarde);
+    const antesManana = labels.map(n => datos[n].antesManana);
+    const antesTarde  = labels.map(n => datos[n].antesTarde);
+
+    // Asegurá que el canvas exista y sea visible
+    const canvas = document.getElementById("graficoTardes");
+    if (!canvas) return alert("No encontré el canvas del gráfico.");
+    const filtros = document.querySelector(".filtros-desplegable");
+    if (filtros) filtros.classList.add("abierto");
+
+    // Evitar superposición de gráficos
+    if (window.__chartTardes) window.__chartTardes.destroy();
+
+    const ctx = canvas.getContext("2d");
+    window.__chartTardes = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          { label: "🟡 Llegó tarde (mañana)", data: tardeManana, backgroundColor: "rgba(255, 206, 86, 0.7)" },
+          { label: "🟠 Llegó tarde (tarde)" , data: tardeTarde , backgroundColor: "rgba(255, 159, 64, 0.7)" },
+          { label: "🔵 Se fue antes (mañana)", data: antesManana, backgroundColor: "rgba(54, 162, 235, 0.7)" },
+          { label: "🔴 Se fue antes (tarde)" , data: antesTarde , backgroundColor: "rgba(255, 99, 132, 0.7)" }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "top" }, title: { display: true, text: "Tardanzas y salidas anticipadas" } },
+        scales: {
+          x: { title: { display: true, text: "Personas" } },
+          y: { beginAtZero: true, title: { display: true, text: "Cantidad de veces" } }
+        }
+      }
+    });
+  };
 
 
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/service-worker.js'); // relativo a /public/
+      console.log('[SW] registrado con scope:', reg.scope);
+      window.__swReg = reg; // opcional, por si querés usarlo
+    } catch (e) {
+      console.error('[SW] registro falló:', e);
+    }
+  });
+}
+</script>
+
+
 </body>
 </html>

@@ -372,6 +372,10 @@ if ('serviceWorker' in navigator) {
     btnInstalar.style.display = "none";
     console.log("✅ App ya instalada");
   });
+
+  if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js'));
+}
 </script>
 <div id="pantalla-bloqueo">Registrando ingreso...</div>
 </body>
